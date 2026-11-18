@@ -1,7 +1,7 @@
 # Crew Onboarding — read this first if you've been recruited
 
-Welcome to **⟦PROJECT-NAME⟧** — ⟦PROJECT-ONE-LINER⟧ <!-- one line: what this
-project is and who the human collaborator(s) are -->.
+Welcome to **pdfreflow** — a fast command-line tool that turns two-column PDFs
+into single-column pages for reading on a phone, built with Jérémie Lumbroso.
 
 This document captures **80% of what every seat needs to know** so per-recruit
 briefs can be short deltas (name, color, mission). Fill the bracketed
@@ -60,8 +60,10 @@ the tmux hive.
 
 ## 1. What this project is
 
-⟦PROJECT-GOAL⟧ <!-- 1-3 sentences: the goal, the repo's role (product repo?
-coordination layer?), where implementation happens; same token as CLAUDE.md's -->
+pdfreflow is a fast command-line tool that takes a two-column PDF (a typical research paper), finds the two columns on each page, and writes a PDF with the columns one after the other, so the paper can be read on a phone. It runs entirely on the local machine. This repository is the product: the Rust crate lives at the root (`Cargo.toml`, `src/`, `tests/`), next to the design record in `docs/adr/`.
+
+**Before touching any PDF**, read the "Confidential inputs" note under
+Project-Specific Notes in `CLAUDE.md`: the real inputs are papers under review.
 
 **Read first**, in order:
 1. `CLAUDE.md` — directives, project context, workflow

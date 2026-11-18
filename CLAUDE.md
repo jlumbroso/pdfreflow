@@ -1,19 +1,9 @@
 # CLAUDE.md - Project Guidance
 
-> **Instantiating this template?** Placeholders look like ⟦THIS⟧ — fill-and-delete
-> each one (grep-proof on purpose; `just instantiate-check` reports which remain
-> and passes only when none do). Square-bracket text elsewhere is either a
-> per-document mold slot (filled at each mint, not at birth) or the frozen
-> dialogue placeholder `[Fill this in]` — never convert those. *(This note is
-> visible text, not an HTML comment, because the harness strips block comments
-> from the CLAUDE.md it serves at session start — a cold instantiator proved the
-> instructions were sitting exactly where their audience could not see them.
-> Delete this block when instantiation is done.)*
-
-- **Project**: ⟦PROJECT-NAME⟧
-- **Human**: ⟦HUMANS⟧
-- **AI**: ⟦AI-SEATS⟧ <!-- with the crew layer, the roster lives in docs/inbox/agent-sessions.json; name the coordinator seat here -->
-- **Last Updated**: ⟦LAST-UPDATED⟧
+- **Project**: pdfreflow
+- **Human**: Jérémie Lumbroso
+- **AI**: Galley 5.2 (Claude Fable 5.2) — founding seat and coordinator; the roster lives in `docs/inbox/agent-sessions.json`
+- **Last Updated**: 2026-11-18
 
 ---
 
@@ -98,15 +88,15 @@ Tests should:
 **RUN THIS PROJECT'S VERIFICATION GATE BEFORE EVERY COMMIT**
 
 Before serving any change:
-1. Run the project's verification gate: ⟦VERIFICATION-GATE⟧ <!-- test suite, build, linter, or a combination; e.g. `npm test`, `uv run pytest`, `hugo && bin/check` -->
+1. Run the project's verification gate: `just gate` (instantiation check, crew-registry validation, then `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`)
 2. Fix any failures before committing
 3. Never serve changes with a failing gate
 
-**Why**: ⟦GATE-WHY⟧ <!-- state what this project's gate actually catches — real classes of bug, real numbers if you have them. A directive that names a real gate gets followed; an unfollowable one teaches every seat that directives are decorative, and that lesson generalizes. -->
+**Why**: The output of this tool is a PDF someone will read a paper from, and a wrong cut silently hides text: a crop that is a few points off drops the first letters of every line. The tests are where that gets caught (page counts, crop rectangles, columns in reading order), and clippy with warnings as errors catches the unchecked arithmetic and ignored results that produce such off-by-some-points cuts. The registry check is there because a malformed `agent-sessions.json` breaks every wake and brief addressed through it. *(As of 2026-11-18 the crate has no tests yet — the gate proves it builds clean and nothing more. Replace this note with real catches as they happen.)*
 
 **Process**:
 ```bash
-⟦VERIFICATION-GATE⟧            # Must be green before commit
+just gate                      # Must be green before commit
 git add <explicit paths>       # never -A: stage by path, commit by pathspec — see CONVENTIONS.md, shared-worktree awareness
 git commit -m "..." -- <paths>
 ```
@@ -256,13 +246,14 @@ If the script was successfully used, append as comments how, and what the outcom
 ## Project Context
 
 ### What we're building:
-⟦PROJECT-GOAL⟧ <!-- 1-3 sentences; same token as ONBOARDING's — one text serves both -->
+pdfreflow is a fast command-line tool that takes a two-column PDF (a typical research paper), finds the two columns on each page, and writes a PDF with the columns one after the other, so the paper can be read on a phone. It runs entirely on the local machine. This repository is the product: the Rust crate lives at the root (`Cargo.toml`, `src/`, `tests/`), next to the design record in `docs/adr/`.
 
 ### Current focus:
-⟦CURRENT-FOCUS⟧
+The MVP: detect the gap between the two columns and emit each column as its own page (ADR-0002). Content that spans both columns is out of scope for the MVP. As of 2026-11-18 the crate is a command-line skeleton only; the next step is the column-detection experiment on the stand-in paper, then the cut step.
 
 ### Key decisions made:
-*(List ADRs here as they land, e.g. `- Auth approach — see docs/adr/0001-*.md`. Empty at birth is healthy.)*
+- Rust, with `lopdf` and `clap` — see `docs/adr/0001-implementation-language-rust-over-go.md`
+- Columns are cut by narrowing page boxes, never by re-rendering — see `docs/adr/0002-mvp-pipeline-detect-the-two-columns-and-re-emit-them-as-pages.md`
 
 ### Open questions:
 ```bash
@@ -403,6 +394,7 @@ If context window fills mid-work, create `docs/HANDOFF-datetime.md`:
 
 *(Anything specific to this project that doesn't fit above. Empty at birth is healthy. One standing note: the Prime Directive's corollary means **direct commits to `main` are expected** here — substrate commits never wait for a branch or a prompt, which deliberately overrides harness defaults that say otherwise.)*
 
+- **Confidential inputs.** The human uses this tool on papers under review that cannot be shared with anyone, AI seats included. So: the tool never opens a network connection; no real paper is ever committed, quoted in a record, or pasted into a brief; and `*.pdf` is git-ignored (this repository is public on GitHub). Development uses a published stand-in paper that stays outside the repository — tests that need it read its path from the `PDFREFLOW_SAMPLE` environment variable and are skipped when it is unset. Anything that must live in `tests/fixtures/` is synthetic.
 - It's possible the user uses `asdf` for Node.js and Python and the runtime of most languages. You can `source .claude/agent.env` before calling the runtimes, like `python` or `node` to access them through `asdf`'s shims. See: https://asdf-vm.com/manage/configuration.html
 
 ---
