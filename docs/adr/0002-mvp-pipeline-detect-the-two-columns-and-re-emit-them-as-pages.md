@@ -173,7 +173,7 @@ Yes, as recommended Option A growing into Option C.
 - [ ] Future task (QST-DETECTION option C): the pixel fallback, for scanned papers. Today they are refused with "no text found".
 - [ ] Concern: a header or footer is recognised as a strip no taller than a line or two, at the very top or bottom, with white space under or over it on every page. On a one-page document there is only one page to compare, so a short first or last line standing apart from the rest could be mistaken for one and left out.
 - [ ] Concern: the columns are assumed to sit at the same place on every page. A paper whose odd and even pages have different margins would blur the detection.
-- [ ] Unverified assumption: glyph widths are read from the font's own width table, which covers the Latin-script papers tried so far. Fonts for Chinese, Japanese or Korean text take a different path in the code that no test or sample has exercised.
+- [ ] Unverified assumption: glyph widths are read from the font's own width table, which covers the Latin-script papers tried so far. Fonts for Chinese, Japanese or Korean text take a different path in the code that no test or sample has exercised. *Update, same day: that path (two-byte composite fonts) has now been exercised by XeTeX and LuaTeX output and works — see ADR-0003, "other producers tried". Actual CJK text is still untried.*
 - [ ] Future task: the output is written without compressed object tables, so it can be slightly larger than it needs to be (the stand-in paper came out 2% *smaller* than its input, so this has not mattered yet).
 
 ---
