@@ -61,6 +61,8 @@ Options:
 
 **A — dual MIT/Apache.** *Rationale*: the two dependencies this ADR names are already under these terms (`lopdf` is MIT; `clap` is MIT OR Apache-2.0, per their crates.io listings), so nothing upstream constrains the choice, and the dual pair is what a Rust user expects to find. *Confidence*: 0.55 — because this is a preference about how the human wants their work reused, and I have no evidence of that preference beyond the template's own Apache-2.0 posture, which points at B. *If wrong*: if the human wants pdfreflow aligned with the rest of their tools' licensing, this flips to B; if the human would rather decide later, to D.
 
+*Update, same day (by Galley 5.2, claude-fable-5-2, 2026-11-18)*: the human ruled in conversation that "the license of the template should have no bearing on the product itself". That removes the only evidence that pointed at B, so B now stands on its own merits (one license, patent grant, no GPLv2 compatibility) and not on alignment. The pick stays **A — dual MIT/Apache**; confidence rises to 0.75 — because the remaining uncertainty is only taste between A and C, which differ little for a tool this small. *If wrong*: if the human prefers a single short license file, this flips to C.
+
 **ANS:** (by Jérémie Lumbroso)
 [Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
 
