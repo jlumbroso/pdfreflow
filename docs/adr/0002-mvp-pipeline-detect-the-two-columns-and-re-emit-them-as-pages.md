@@ -52,7 +52,7 @@ adr teaching map: the example is not the teaching — these are the up-links fro
 ## Questions
 
 ### QST-OUTPUT-SHAPE: What shape should the output pages have?
-- Status: unanswered
+- Status: answered
 - Why asking: "the columns one after the other" can be laid out three ways, and they differ in how scrolling feels on the phone and in how much machinery the tool needs. A two-column letter page holds two columns each about 3.3 inches wide and 9 inches tall.
 - Need: pick a letter (or override — any shape answers)
 
@@ -66,12 +66,12 @@ Options:
 **A — one column per page.** *Rationale*: it is the only option that touches nothing but the page list and page boxes, so the first version cannot damage content, and phone viewers in continuous-scroll mode already hide most of the page break. B and C both build on A's column rectangles, so starting at A wastes nothing. *Confidence*: 0.75 — because the reasoning is from how PDF page boxes work, not from trying the result in the human's own reader. *If wrong*: if the break between a page's left and right column is annoying in the reader the human actually uses, or if matching the paper's page numbers matters for writing the review, this flips to B.
 
 **ANS:** (by Jérémie Lumbroso)
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+Yes, Option A, and ideally, tightly cropped. This will mean ignoring some small amount of noise (header/footer/page number/etc.).
 
 ---
 
 ### QST-FULL-WIDTH: What should the first version do with content that spans both columns?
-- Status: unanswered
+- Status: answered
 - Why asking: the human ruled spanning figures out of the MVP. But one spanning element is on the first page of nearly every paper: the title and author block. A straight cut down the middle slices it in half. The same mechanism that would fix the title also fixes spanning figures and tables, so this is a question of when, not whether.
 - Need: pick a letter (or override — any shape answers)
 
@@ -85,7 +85,7 @@ Options:
 **A — cut straight through**, with C as the planned next step. *Rationale*: it matches the scope the human set ("we don't need to deal with figures that span"), and for a reviewer the split title costs little. B is a special case of C, so building B first means building the same detector twice. *Confidence*: 0.7 — because I have not yet seen the stand-in paper's page 1 after a straight cut. *If wrong*: if the straight cut makes page 1 unusable on the stand-in paper, or the title block throws off column detection on page 1, this flips to B.
 
 **ANS:** (by Jérémie Lumbroso)
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+Definitely Option A. The first part of this is figuring out how to ignore this "noise" and cut through it rather than being overly cautious and not seeing the two columns.
 
 ---
 
@@ -123,7 +123,7 @@ Two steps: **detect** (where is the gap between the columns?) and **cut** (write
 ## Open Follow-ups
 
 ### QST-DETECTION: How is the gap between the columns found?
-- Status: unresolved — the seat's call (design was delegated); closes when the experiment below has been run on the stand-in paper
+- Status: answered
 - Why deferring: the two candidates can only be told apart by running them on a real file, which has not happened yet.
 - Need: nothing from the human unless they want to override
 
@@ -136,8 +136,8 @@ Options:
 
 **A — text positions**, growing into C if needed. *Rationale*: it needs only `lopdf`, which the cut step already uses, and it needs no font metrics: taking the distance between the two columns' left edges as the width of both crops gives each crop its column plus one gap-width of white space. *Confidence*: 0.6 — because nothing has been run; I am reasoning from how pdfTeX writes text, and other PDF producers position text differently. *If wrong*: if text start positions on the stand-in paper's body pages do not show one clean gap near the page centre, this flips to B.
 
-**ANS:** (by Galley 5.2)
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Yes, as recommended Option A growing into Option C.
 
 ---
 

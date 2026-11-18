@@ -1,0 +1,75 @@
+[
+  {
+    "key": "jlumbroso-pdfreflow:1::949429ba8929::0",
+    "adrPath": "docs/adr/0001-implementation-language-rust-over-go.md",
+    "adrNumber": 1,
+    "questionText": "Which license should pdfreflow carry?",
+    "draftText": "Thanks for the clarification, both in-chat, and for recording it here. Thanks for updating your confidence level and documenting it. This helps me approve Option A, as recommended, because it seems to be standard in the Rust ecosystem (not because I hold a specific prior for either/both license).",
+    "updatedAt": "2026-11-18T00:36:29.784Z",
+    "history": [
+      "Th",
+      "Thanks for the clarification, both in-chat, and for recording it here. ",
+      "Thanks for the clarification, both in-chat, and for recording it here. Thanks for updating your confidence level and documenting it. ",
+      "Thanks for the clarification, both in-chat, and for recording it here. Thanks for updating your confidence level and documenting it. This helps me ",
+      "Thanks for the clarification, both in-chat, and for recording it here. Thanks for updating your confidence level and documenting it. This helps me approve Option A."
+    ],
+    "totalOccurrences": 1,
+    "source": "panel",
+    "archivedAt": "2026-11-18T00:36:30.888Z",
+    "reason": "promoted"
+  },
+  {
+    "key": "jlumbroso-pdfreflow:2::c7d954542940::0",
+    "adrPath": "docs/adr/0002-mvp-pipeline-detect-the-two-columns-and-re-emit-them-as-pages.md",
+    "adrNumber": 2,
+    "questionText": "What shape should the output pages have?",
+    "draftText": "Yes, Option A, and ideally, tightly cropped. This will mean ignoring some small amount of noise (header/footer/page number/etc.).",
+    "updatedAt": "2026-11-18T00:37:15.836Z",
+    "history": [
+      "Yes, Option A, and ideally, tightly cropped.",
+      "Yes, Option A, and ideally, tightly cropped. This will mean ignoring some small amount of noise (f",
+      "Yes, Option A, and ideally, tightly cropped. This will mean ignoring some small amount of noise (header/footer/page number/etc.)"
+    ],
+    "totalOccurrences": 1,
+    "source": "panel",
+    "archivedAt": "2026-11-18T00:37:16.198Z",
+    "reason": "promoted"
+  },
+  {
+    "key": "jlumbroso-pdfreflow:2::27a6811dde2a::0",
+    "adrPath": "docs/adr/0002-mvp-pipeline-detect-the-two-columns-and-re-emit-them-as-pages.md",
+    "adrNumber": 2,
+    "questionText": "What should the first version do with content that spans both columns?",
+    "draftText": "Definitely Option A. The first part of this is figuring out how to ignore this \"noise\" and cut through it rather than being overly cautious and not seeing the two columns.",
+    "updatedAt": "2026-11-18T00:38:00.981Z",
+    "history": [
+      "Definitely Option A. The first part of this is ",
+      "Definitely Option A. The first part of this is figuring out how to ignore this \"noise\" and cut through it rather than ",
+      "Definitely Option A. The first part of this is figuring out how to ignore this \"noise\" and cut through it rather than mis",
+      "Definitely Option A. The first part of this is figuring out how to ignore this \"noise\" and cut through it rather than misrecognize c",
+      "Definitely Option A. The first part of this is figuring out how to ignore this \"noise\" and cut through it rather than misrecognize single ",
+      "Definitely Option A. The first part of this is figuring out how to ignore this \"noise\" and cut through it rather than misrecognize single",
+      "Definitely Option A. The first part of this is figuring out how to ignore this \"noise\" and cut through it rather than misrecognize wide col",
+      "Definitely Option A. The first part of this is figuring out how to ignore this \"noise\" and cut through it rather than misrecognize wide colu"
+    ],
+    "totalOccurrences": 1,
+    "source": "panel",
+    "archivedAt": "2026-11-18T00:38:01.003Z",
+    "reason": "promoted"
+  },
+  {
+    "key": "jlumbroso-pdfreflow:2::86cc1a73eab9::0",
+    "adrPath": "docs/adr/0002-mvp-pipeline-detect-the-two-columns-and-re-emit-them-as-pages.md",
+    "adrNumber": 2,
+    "questionText": "How is the gap between the columns found?",
+    "draftText": "Yes, as recommended Option A growing into Option C",
+    "updatedAt": "2026-11-18T00:38:30.647Z",
+    "history": [
+      "Yes, as recommended Option A growing into Option C."
+    ],
+    "totalOccurrences": 1,
+    "source": "panel",
+    "archivedAt": "2026-11-18T00:38:31.467Z",
+    "reason": "promoted"
+  }
+]

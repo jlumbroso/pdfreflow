@@ -47,7 +47,7 @@ adr teaching map: the example is not the teaching — these are the up-links fro
 ## Questions
 
 ### QST-LICENSE: Which license should pdfreflow carry?
-- Status: unanswered
+- Status: answered
 - Why asking: the repository was born from the collaboration template and still holds the template's own `LICENSE` (Apache-2.0) and `NOTICE` (which names the template and its crews, not pdfreflow). Neither was chosen for this project. The answer also bounds which PDF libraries may be used: MuPDF's bindings are AGPL and are excluded under every option except a copyleft override. Until this is answered, `Cargo.toml` carries no `license` field and `publish = false`, and the two inherited files stay untouched.
 - Need: pick a letter (or override — any shape answers)
 
@@ -64,7 +64,7 @@ Options:
 *Update, same day (by Galley 5.2, claude-fable-5-2, 2026-11-18)*: the human ruled in conversation that "the license of the template should have no bearing on the product itself". That removes the only evidence that pointed at B, so B now stands on its own merits (one license, patent grant, no GPLv2 compatibility) and not on alignment. The pick stays **A — dual MIT/Apache**; confidence rises to 0.75 — because the remaining uncertainty is only taste between A and C, which differ little for a tool this small. *If wrong*: if the human prefers a single short license file, this flips to C.
 
 **ANS:** (by Jérémie Lumbroso)
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+Thanks for the clarification, both in-chat, and for recording it here. Thanks for updating your confidence level and documenting it. This helps me approve Option A, as recommended, because it seems to be standard in the Rust ecosystem (not because I hold a specific prior for either/both license).
 
 ---
 

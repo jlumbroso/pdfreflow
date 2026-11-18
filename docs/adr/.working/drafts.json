@@ -1,0 +1,13 @@
+[
+  {
+    "key": "jlumbroso-pdfreflow:2::86cc1a73eab9::0",
+    "adrPath": "docs/adr/0002-mvp-pipeline-detect-the-two-columns-and-re-emit-them-as-pages.md",
+    "adrNumber": 2,
+    "questionText": "How is the gap between the columns found?",
+    "draftText": "Yes, as recommended Option A growing into Option C.",
+    "updatedAt": "2026-11-18T00:38:31.559Z",
+    "history": [],
+    "totalOccurrences": 1,
+    "source": "panel"
+  }
+]
