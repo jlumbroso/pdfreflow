@@ -4,11 +4,13 @@ version = "0.1.0"
 edition = "2024"
 description = "Turn a two-column PDF into single-column pages that are easy to read on a phone."
 repository = "https://github.com/jlumbroso/pdfreflow"
-# No `license` field yet, and not publishable: ADR-0001 QST-LICENSE is open.
+license = "MIT OR Apache-2.0"
+# Not on crates.io yet; remove this line to publish.
 publish = false
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+lopdf = "0.47.0"
 
 [profile.release]
 lto = true

@@ -4,37 +4,47 @@ Turn a two-column PDF into single-column pages that are easy to read on a phone.
 
 Research papers are typeset in two narrow columns on a large page. On a phone
 that means zooming in and panning left, down, up, right, down, for every page.
-pdfreflow finds the two columns on each page and writes a new PDF with the
-columns one after the other, so reading is one continuous scroll.
+pdfreflow finds the two columns and writes a new PDF in which each column is
+its own page, tightly cropped, in reading order: left column, right column,
+next page. Reading becomes one continuous scroll.
 
 It runs entirely on your machine. The input is never uploaded anywhere.
 
-## Status
-
-**Not usable yet.** As of 2026-11-18 the repository holds the design and a
-command-line skeleton; the tool does not yet produce output.
-
-The plan for the first version:
-
-- find the gap between the two columns on each page;
-- emit each column as its own page, by narrowing the page's visible box —
-  nothing is re-rendered, so text stays sharp and selectable;
-- leave content that spans both columns (titles, wide figures) for later.
-
-## Usage (planned)
+## Usage
 
 ```sh
 pdfreflow paper.pdf                 # writes paper.reflow.pdf
 pdfreflow paper.pdf -o phone.pdf
+pdfreflow paper.pdf --explain       # also print the columns and crops it found
 ```
+
+`--explain` prints coordinates only, never any of the document's text, so its
+output is safe to share when the paper itself is not.
+
+## What it does, and does not do
+
+- Each column becomes a page cropped tightly to its text and figures. Running
+  headers, footers and page numbers are left out.
+- Nothing is re-rendered. Each new page is the original page seen through a
+  narrower window, so text stays sharp at any zoom and can still be selected
+  and searched. A typical paper takes a few hundredths of a second.
+- Anything that spans both columns — the title on the first page, a wide
+  figure or table — is cut down the middle. This is the first version's known
+  limit.
+- A page set in a single column inside a two-column paper is kept in one piece.
+  A document with no two-column layout at all is refused with a message, not
+  cut.
+- Links inside the document are dropped for now.
+- Scanned documents (pictures of pages, with no text inside) are not supported
+  yet.
 
 ## Building
 
 Requires a recent Rust toolchain (edition 2024).
 
 ```sh
-cargo build --release
-just gate        # formatting, lints, tests, and the repository's own checks
+cargo build --release               # the binary is target/release/pdfreflow
+just gate                           # formatting, lints, tests, repository checks
 ```
 
 ## How this project is run
@@ -42,9 +52,18 @@ just gate        # formatting, lints, tests, and the repository's own checks
 Decisions and open questions live in [`docs/adr/`](docs/adr/), next to the code:
 
 - [ADR-0001](docs/adr/0001-implementation-language-rust-over-go.md) — why Rust
-- [ADR-0002](docs/adr/0002-mvp-pipeline-detect-the-two-columns-and-re-emit-them-as-pages.md) — the first version's design
+- [ADR-0002](docs/adr/0002-mvp-pipeline-detect-the-two-columns-and-re-emit-them-as-pages.md) — how the columns are found and cut
 
 The repository was started from the
 [ADRs4AI human-AI collaboration template](https://github.com/ADRs4AI/human-ai-collaboration-template-A);
 [`CLAUDE.md`](CLAUDE.md) and [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) describe how
 the human and AI collaborators work together here.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+at your option.
