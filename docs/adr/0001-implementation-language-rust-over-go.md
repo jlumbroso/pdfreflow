@@ -9,7 +9,7 @@ adr teaching map: the example is not the teaching — these are the up-links fro
 # Implementation language: Rust over Go
 
 - **Date**: 2026-11-18 (UTC)
-- **Iteration**: 1
+- **Iteration**: 2
 - **Status**: Accepted
 - **Deciders**: Jérémie Lumbroso (delegated the choice), Galley 5.2 (made it)
 
@@ -104,8 +104,8 @@ One binary that reads a two-column PDF and writes a single-column one, fast, on 
 ## Action Items
 
 - [x] Scaffold the crate and wire it into `just gate` - Owner: Galley 5.2
-- [ ] Load and re-save the stand-in paper with `lopdf`; compare page count and visual output - Owner: Galley 5.2
-- [ ] Apply the QST-LICENSE answer to `Cargo.toml`, `LICENSE`, `NOTICE` - Owner: Galley 5.2
+- [x] Load and re-save the stand-in paper with `lopdf`; compare page count and visual output - Owner: Galley 5.2. *Done in Iteration 2, on the stand-in paper and two arXiv papers: every output passes `qpdf --check` and the rendered pages look right. The "If wrong" condition for Rust did not occur.*
+- [x] Apply the QST-LICENSE answer to `Cargo.toml`, `LICENSE`, `NOTICE` - Owner: Galley 5.2. *Done in Iteration 2: `LICENSE` renamed to `LICENSE-APACHE`, `LICENSE-MIT` added, the template's `NOTICE` removed, `license = "MIT OR Apache-2.0"` set.*
 
 ---
 
@@ -116,6 +116,12 @@ One binary that reads a two-column PDF and writes a single-column one, fast, on 
 - Contributors: Jérémie Lumbroso, Galley 5.2
 - Changes: initial record; choice made; license question opened.
 - Outcome: `Accepted` (the delegated choice is made; QST-LICENSE stays open and does not block work).
+
+### Iteration 2 (2026-11-18)
+- Trigger: the human answered QST-LICENSE with option A (commit `2de1a87`), after ruling in conversation that the template's license has no bearing on the product.
+- Contributors: Jérémie Lumbroso, Galley 5.2
+- Changes: license applied (see Action Items). The MVP was built in Rust with `lopdf` and `clap`; `lopdf` read and re-wrote three real papers without damage, so the condition that would have flipped this decision to Go did not occur. Two observations: the release binary is 1.5 MB, and the rendering crates named under Option A (`hayro`, `pdfium-render`) were not needed — detection works from text positions alone.
+- Outcome: `Accepted` (unchanged).
 
 ---
 

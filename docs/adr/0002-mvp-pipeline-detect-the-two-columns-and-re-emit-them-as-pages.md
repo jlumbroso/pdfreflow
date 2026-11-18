@@ -9,11 +9,11 @@ adr teaching map: the example is not the teaching — these are the up-links fro
 # MVP pipeline: detect the two columns and re-emit them as pages
 
 - **Date**: 2026-11-18 (UTC)
-- **Iteration**: 1
-- **Status**: Draft
+- **Iteration**: 2
+- **Status**: Implemented
 - **Deciders**: Jérémie Lumbroso, Galley 5.2
 
-**TL;DR**: For each page, find the gap between the two columns, then write two output pages that reuse the original page's content under a narrower page box — nothing is re-rendered, text stays text; how the gap is found is settled by a first experiment on a stand-in paper.
+**TL;DR**: For each page, find the gap between the two columns, then write two output pages that reuse the original page's content under a narrower page box — nothing is re-rendered, text stays text; the gap is found once per document from where text sits on the typical page, and each column is cropped tightly, leaving out headers, footers and page numbers.
 
 ---
 
@@ -116,7 +116,30 @@ Two steps: **detect** (where is the gap between the columns?) and **cut** (write
 ### Consequences
 - The tool never needs to understand fonts or drawing to *write* its output — only to *find* the gap.
 - Page properties that a page inherits from its parent in the page tree (`MediaBox`, `Resources`, `Rotate`) must be resolved before a page is copied.
-- A page where no two-column gap is found is passed through unchanged.
+- ~~A page where no two-column gap is found is passed through unchanged.~~ *Corrected in Iteration 2*: a single-column page inside a two-column paper is kept in one piece (cropped to the text block); a document with no two-column layout at all is refused with a message.
+
+### The detect step (added in Iteration 2, after the human's answers)
+
+The human's answers set two requirements beyond the options: crops should be **tight**, and detection should **cut through noise** (headers, footers, page numbers, the title) "rather than being overly cautious and not seeing the two columns". Both shaped what was built (`src/ink.rs`, `src/layout.rs`):
+
+1. **Where the ink is.** Each page's drawing instructions are read to get the bounding box of every run of text (with real glyph widths from the font), every image and every painted line or shape. Nothing is rendered.
+2. **The columns, once for the whole document.** For each horizontal position, take how much text sits above it on the *typical* page (the median over pages). The gap is the widest empty strip near the middle of the text; the columns are what lies on either side. Because it is the typical page that counts, a title crossing the gap on page 1 or a page number sitting in the gap does not hide it.
+3. **The text block.** The vertical range that holds ink on some page, minus running headers and footers (thin strips at the very top or bottom with white space next to them on every page).
+4. **The crops.** Each column of each page is cropped to the column's width and to the height of the ink actually present, plus 4 points of white space. An empty column gives no page. A half-empty column gives a short page.
+
+**What was measured** (2026-11-18, release build, Apple silicon laptop):
+
+| Paper | Layout | Result | Time |
+|---|---|---|---|
+| The stand-in paper (ACM `acmart`, 7 pages) | two columns, gap at x 295–318 | 14 pages | 0.01 s |
+| arXiv 1512.03385 (CVPR style, 12 pages) | two columns, gap at x 287–309 | 24 pages | 0.02 s |
+| arXiv 1810.04805 (ACL style, 16 pages) | two columns, gap at x 291–307 | 32 pages | 0.02 s |
+| arXiv 1706.03762 (NeurIPS style) | one column | refused: "no gap between two columns found" | — |
+| arXiv 2010.11929 (ICLR style) | one column | refused, same message | — |
+
+Rendered pages of the three two-column outputs were looked at: columns are whole, headers and page numbers are gone, a figure at the top of a column is kept, and the title and spanning figures are cut down the middle as agreed. All five inputs were made by pdfTeX; no paper made by Word or another producer has been tried.
+
+**A design error caught on the way**: the first version found the columns by *adding up* ink over all pages. A test for a real case — a single-column page inside a two-column paper — failed: with one page in three single-column, the sum filled the gap and the whole paper was refused. Taking the median over pages fixed it. The test stays as a regression test (`tests/reflow.rs`, `regression_tests`), and the story is told in `docs/vignettes/2026-11-18-the-appendix-page-that-filled-the-gap.md`.
 
 ---
 
@@ -141,18 +164,25 @@ Yes, as recommended Option A growing into Option C.
 
 ---
 
-- [ ] Unverified assumption: `lopdf` loads and re-saves the stand-in paper without damage (ADR-0001's falsifier).
+- [x] Unverified assumption: `lopdf` loads and re-saves the stand-in paper without damage (ADR-0001's falsifier). *Verified in Iteration 2 on three papers; `qpdf --check` reports no errors on any output.*
 - [ ] Future task: keep link annotations that fall inside a crop.
-- [ ] Future task: rotated pages; pages with one or three columns; trimming the white space left in each crop.
-- [ ] Concern: page headers and footers span both columns and will be split by a straight cut.
+- [ ] Future task: rotated pages (currently passed through untouched); pages with three columns.
+- [x] Future task: trimming the white space left in each crop. *Done in Iteration 2 — crops are tight, at the human's word.*
+- [x] Concern: page headers and footers span both columns and will be split by a straight cut. *Resolved in Iteration 2: running headers, footers and page numbers are left out of the crops altogether.*
+- [ ] Future task (QST-FULL-WIDTH option C): split pages into full-width and two-column bands, so titles and spanning figures stay whole.
+- [ ] Future task (QST-DETECTION option C): the pixel fallback, for scanned papers. Today they are refused with "no text found".
+- [ ] Concern: a header or footer is recognised as a strip no taller than a line or two, at the very top or bottom, with white space under or over it on every page. On a one-page document there is only one page to compare, so a short first or last line standing apart from the rest could be mistaken for one and left out.
+- [ ] Concern: the columns are assumed to sit at the same place on every page. A paper whose odd and even pages have different margins would blur the detection.
+- [ ] Unverified assumption: glyph widths are read from the font's own width table, which covers the Latin-script papers tried so far. Fonts for Chinese, Japanese or Korean text take a different path in the code that no test or sample has exercised.
+- [ ] Future task: the output is written without compressed object tables, so it can be slightly larger than it needs to be (the stand-in paper came out 2% *smaller* than its input, so this has not mattered yet).
 
 ---
 
 ## Action Items
 
-- [ ] Run the QST-DETECTION experiment on the stand-in paper (script under `scripts/ephemeral/`) - Owner: Galley 5.2
-- [ ] Implement the cut step and a first end-to-end run - Owner: Galley 5.2
-- [ ] Build a small synthetic two-column PDF that can live in `tests/` (the stand-in paper cannot) - Owner: Galley 5.2
+- [x] Run the QST-DETECTION experiment on the stand-in paper - Owner: Galley 5.2. *Run through the tool's own `--explain` flag instead of a throwaway script, so the experiment stays repeatable on any paper.*
+- [x] Implement the cut step and a first end-to-end run - Owner: Galley 5.2
+- [x] Build a small synthetic two-column PDF that can live in `tests/` (the stand-in paper cannot) - Owner: Galley 5.2. *Built in code by `tests/reflow.rs`; no PDF file is stored.*
 
 ---
 
@@ -163,6 +193,12 @@ Yes, as recommended Option A growing into Option C.
 - Contributors: Jérémie Lumbroso, Galley 5.2
 - Changes: initial record; cut step decided; two questions opened for the human, one held by the seat.
 - Outcome: `Draft`
+
+### Iteration 2 (2026-11-18)
+- Trigger: the human answered all four questions (commit `2de1a87`) and said "Go for it!".
+- Contributors: Jérémie Lumbroso, Galley 5.2
+- Changes: QST-OUTPUT-SHAPE answered A, with tight crops and headers/footers/page numbers left out; QST-FULL-WIDTH answered A, with the instruction to cut through noise; QST-DETECTION answered A growing into C. The MVP was built to those answers and run on five papers; "The detect step" section records the design as built, the measurements, and a design error caught by a test. Follow-ups and action items updated.
+- Outcome: `Draft → Implemented` (the MVP as decided here exists and passes its gate; the unchecked follow-ups are later work, not part of this decision).
 
 ---
 
