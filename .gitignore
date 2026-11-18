@@ -4,6 +4,18 @@
 # Temporary files
 ~*
 
+# Rust build output
+/target/
+
+# PDFs never enter this repository: real inputs are confidential papers under
+# review, and the stand-in paper is copyrighted (ADR-0002). A synthetic fixture
+# made for tests is the one exception.
+*.pdf
+!tests/fixtures/*.pdf
+
 # Python temporary files
 __pycache__/
 *.py[cod]
+
+# Environment variables
+.env

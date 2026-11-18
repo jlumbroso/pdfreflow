@@ -526,8 +526,11 @@ gate:
     set -euo pipefail
     just instantiate-check
     python3 scripts/groups-lookup.py --validate
-    # ADD YOUR PROJECT'S OWN GATE HERE when it exists (test suite, build, linter)
-    echo "✅ gate green (day-one checks; project gate slot above)"
+    # pdfreflow's own gate (ADR-0001): formatting, lints as errors, tests.
+    cargo fmt --check
+    cargo clippy --all-targets -- -D warnings
+    cargo test
+    echo "✅ gate green (instantiation + registry + cargo fmt/clippy/test)"
 
 # Is this instance fully instantiated? Greps for remaining ⟦SIGIL⟧ placeholders
 # (the closed registry: docs/adr/templates/placeholders.yaml) and warns on
