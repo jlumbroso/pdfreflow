@@ -169,7 +169,7 @@ Yes, as recommended Option A growing into Option C.
 - [ ] Future task: rotated pages (currently passed through untouched); pages with three columns.
 - [x] Future task: trimming the white space left in each crop. *Done in Iteration 2 — crops are tight, at the human's word.*
 - [x] Concern: page headers and footers span both columns and will be split by a straight cut. *Resolved in Iteration 2: running headers, footers and page numbers are left out of the crops altogether.*
-- [ ] Future task (QST-FULL-WIDTH option C): split pages into full-width and two-column bands, so titles and spanning figures stay whole.
+- [x] Future task (QST-FULL-WIDTH option C): split pages into full-width and two-column bands, so titles and spanning figures stay whole. *Done the same day as part D of ADR-0003: the straight cut through titles and spanning figures, chosen here for the MVP, no longer happens.*
 - [ ] Future task (QST-DETECTION option C): the pixel fallback, for scanned papers. Today they are refused with "no text found".
 - [ ] Concern: a header or footer is recognised as a strip no taller than a line or two, at the very top or bottom, with white space under or over it on every page. On a one-page document there is only one page to compare, so a short first or last line standing apart from the rest could be mistaken for one and left out.
 - [ ] Concern: the columns are assumed to sit at the same place on every page. A paper whose odd and even pages have different margins would blur the detection.

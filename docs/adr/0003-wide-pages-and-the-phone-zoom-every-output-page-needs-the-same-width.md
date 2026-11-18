@@ -9,7 +9,7 @@ adr teaching map: the example is not the teaching — these are the up-links fro
 # Wide pages and the phone zoom: every output page needs the same width
 
 - **Date**: 2026-11-18 (UTC)
-- **Iteration**: 2
+- **Iteration**: 3
 - **Status**: Partially Implemented
 - **Deciders**: Jérémie Lumbroso, Galley 5.2
 
@@ -87,6 +87,25 @@ Options:
 
 ---
 
+### QST-SIDEWAYS-DEFAULT: Should wide figures be turned sideways without being asked?
+- Status: unanswered
+- Why asking: the tool can now show a full-width figure or table two ways. Shrunk, it is upright and about half size (49% on the stand-in paper's spanning screenshot). Turned a quarter turn, it is much larger (144% for the same screenshot) but must be read with the phone held sideways, and with the phone's screen rotation locked, or the reader turns the page back upright and small. Today turning happens only with `--sideways`. Trying one paper both ways on the phone is the experiment that answers this: `pdfreflow paper.pdf -o a.pdf` and `pdfreflow paper.pdf --sideways -o b.pdf`.
+- Need: pick a letter (or override — any shape answers)
+
+Options:
+- **A — only when asked**: as today. Figures are upright and small unless `--sideways` is given. Nothing surprising in the default output.
+- **B — turned by default**: figures that gain at least 25% are turned unless `--upright` is given. Larger figures with no flag to remember; every paper with a wide figure then needs the phone turned at some point.
+- **C — never**: remove the option. Choose this if sideways pages turn out to be more nuisance than help.
+
+**Recommendation**: (by Galley 5.2, claude-fable-5-2, 2026-11-18)
+
+**A — only when asked**, until the human has tried it. *Rationale*: the gain in size is measured (49% to 144% on the stand-in paper's figure, `--explain` output), but whether a sideways page is pleasant in a continuous scroll is something only a phone in a hand can show, and no one has looked yet. *Confidence*: 0.5 — because the evidence for the size gain is solid and the evidence about the reading experience is nil. *If wrong*: if the human tries `--sideways` and prefers it, this flips to B; if turned pages are disorienting, to C.
+
+**ANS:** (by Jérémie Lumbroso)
+[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+
+---
+
 ## Supporting Materials
 
 ### DOC: the run that showed the problem
@@ -125,6 +144,19 @@ The human had arrived at A independently and endorsed the combined plan. The rul
 
 **Trade-off accepted**: figures on a shrunk page are about half size. On the synthetic page each figure is 476 wide and about 170 tall; turned sideways on its own page it could be shown at about 140% instead of 50%. That is what D is for.
 
+**As built (D)**, in `src/layout.rs` (`bands`, `full_width`, `figure_blocks`), Iteration 3:
+
+- A two-column page is read from the top down. Wherever ink runs unbroken across the gap — a title, a caption, a wide figure or table — that stretch is a **full-width band** and becomes a page of its own, whole, shrunk to column width. The stretches of two columns above and below it are cut into columns as before. So the title on page 1 and figures that span both columns are no longer cut down the middle (this is also ADR-0002's QST-FULL-WIDTH option C, done).
+- A band takes with it the short last line of a caption, and the few lines that sit between two bands (authors' names between a title and the affiliations), so these do not come out as slivers.
+- **Sideways, as an option** (`--sideways`): a band that holds a figure or a ruled table, and would show at least 25% larger on its side, is turned a quarter turn and magnified up to 150%. A region of stacked figures is first split into one piece per figure. On the stand-in paper, its spanning screenshot goes from 49% (shrunk) to 144% (turned).
+- Turned pages are never wider on screen than a column; a few are narrower, when the 150% limit is reached first. So the rule is now precisely: **no page is wider than a column, and every page that is not turned is exactly that wide.**
+
+**One departure from the option as endorsed, stated plainly**: option D said a band would be "shrunk or turned sideways, whichever shows it larger", automatically. As built, turning happens only when asked for. A turned figure has to be read with the phone held sideways and the screen's rotation locked, or the reader turns it back; the seat has not seen either on a phone and did not want to make every figure depend on a gesture nobody has tried. QST-SIDEWAYS-DEFAULT asks the human to settle it after trying both.
+
+**Checked** (release build, both modes): seven documents — the stand-in, two arXiv two-column papers, three synthetic articles (pdfTeX, XeTeX, LuaTeX), one single-column paper. Without the option every page of every output has one width; with it no page is wider. All outputs pass `qpdf --check`; the single-column paper is still refused. Rendered pages were looked at for the stand-in, both arXiv papers and the stacked-figures article: titles and spanning figures come out whole, columns are unchanged, and no band was found inside ordinary column text. Still not checked on any manuscript the seat cannot see.
+
+**Known rough edges**: a spanning table whose cells happen to leave the gap empty is found only through its rules, and may still be cut through as before; two figures side by side under one shared caption are treated as column content with the caption as a band of its own.
+
 ### Consequences
 - ADR-0002's sentence "a single-column page … is kept in one piece (cropped to the text block)" still holds, with "and shrunk to column width" added.
 - Rotated pages are no longer passed through untouched: they are shrunk too, since any full-width page breaks the zoom.
@@ -134,7 +166,8 @@ The human had arrived at A independently and endorsed the combined plan. The rul
 ## Action Items
 
 - [x] Implement the answer to QST-WIDE-PAGES, part A (shrink to fit), with a test that every output page of a paper containing a wide page has the same width - Owner: Galley 5.2
-- [ ] Implement part D: split pages into bands; give each full-width band its own page, shrunk or turned sideways - Owner: Galley 5.2
+- [x] Implement part D: split pages into bands; give each full-width band its own page, shrunk or turned sideways - Owner: Galley 5.2. *Done in Iteration 3; turning is behind `--sideways` pending QST-SIDEWAYS-DEFAULT.*
+- [ ] Try one paper with and without `--sideways` on the phone, and answer QST-SIDEWAYS-DEFAULT - Owner: Jérémie Lumbroso
 - [x] Make the left and right crops exactly the same width (they differ by 2 points in the run above) - Owner: Galley 5.2
 - [ ] Apply the answer to QST-LINE-NUMBERS - Owner: Galley 5.2
 - [ ] Try a two-column paper made by Word, Typst or InDesign - Owner: whoever finds one first
@@ -154,6 +187,12 @@ The human had arrived at A independently and endorsed the combined plan. The rul
 - Contributors: Jérémie Lumbroso, Galley 5.2
 - Changes: answer recorded; part A built, tested and described under Decision; left and right crops made the same width. QST-LINE-NUMBERS is still open and line numbers are still kept.
 - Outcome: `Draft → Partially Implemented` (A is in; D is not).
+
+### Iteration 3 (2026-11-18)
+- Trigger: A committed; D was the endorsed next step.
+- Contributors: Galley 5.2
+- Changes: part D built and described under Decision: full-width bands get their own pages; `--sideways` turns figures and tables. One departure from the endorsed wording (turning is opt-in, not automatic) is stated there and put to the human as QST-SIDEWAYS-DEFAULT. Seven documents checked in both modes.
+- Outcome: `Partially Implemented` (unchanged: both parts are built; two questions, QST-LINE-NUMBERS and QST-SIDEWAYS-DEFAULT, are open and may change defaults).
 
 ---
 
