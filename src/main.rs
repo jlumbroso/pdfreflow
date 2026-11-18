@@ -24,6 +24,12 @@ struct Cli {
     /// Prints numbers only, never any of the document's content.
     #[arg(long)]
     explain: bool,
+
+    /// Turn wide figures and tables a quarter turn when that shows them
+    /// larger. Read them with the phone held sideways (lock the screen
+    /// rotation first, or the reader will turn them back).
+    #[arg(long)]
+    sideways: bool,
 }
 
 fn explain(report: &Report) {
@@ -45,7 +51,9 @@ fn explain(report: &Report) {
             .map(|piece| {
                 let r = piece.rect;
                 let mut text = format!("[{:.0} {:.0} {:.0} {:.0}]", r.x0, r.y0, r.x1, r.y1);
-                if piece.scale != 1.0 {
+                if piece.turned {
+                    text.push_str(&format!(" turned sideways at {:.0}%", piece.scale * 100.0));
+                } else if piece.scale != 1.0 {
                     text.push_str(&format!(" shrunk to {:.0}%", piece.scale * 100.0));
                 }
                 text
@@ -66,7 +74,10 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    match pdfreflow::reflow_file(&cli.input, &output) {
+    let options = pdfreflow::Options {
+        sideways: cli.sideways,
+    };
+    match pdfreflow::reflow_file(&cli.input, &output, options) {
         Ok(report) => {
             eprintln!(
                 "pdfreflow: {} pages -> {} pages, written to {}",

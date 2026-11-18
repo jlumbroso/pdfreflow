@@ -142,6 +142,10 @@ pub fn apply(doc: &mut Document, page_ids: &[ObjectId], plans: &[Vec<Piece>]) ->
             };
             dict.set("MediaBox", rect_array(&shown));
             dict.set("CropBox", rect_array(&shown));
+            if piece.turned {
+                // A quarter turn that puts the piece's top on the left.
+                dict.set("Rotate", Object::Integer(270));
+            }
             if index == 0 {
                 // The first piece keeps the source page's identity, so
                 // bookmarks into the page still land on it.

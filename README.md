@@ -15,6 +15,7 @@ It runs entirely on your machine. The input is never uploaded anywhere.
 ```sh
 pdfreflow paper.pdf                 # writes paper.reflow.pdf
 pdfreflow paper.pdf -o phone.pdf
+pdfreflow paper.pdf --sideways      # turn wide figures to show them larger
 pdfreflow paper.pdf --explain       # also print the columns and crops it found
 ```
 
@@ -29,12 +30,15 @@ output is safe to share when the paper itself is not.
   narrower window, so text stays sharp at any zoom and can still be selected
   and searched. A typical paper takes a few hundredths of a second.
 - Anything that spans both columns — the title on the first page, a wide
-  figure or table — is cut down the middle. This is the first version's known
-  limit.
+  figure or table with its caption — is kept whole, on a page of its own, in
+  its place in the reading order. So is a page that has no columns at all (an
+  appendix set in one wide column, a page of figures).
 - Every page of the result has the same width, so a phone reader keeps one
-  zoom level from start to finish. A page that cannot be cut into columns — a
-  page of full-width figures, an appendix set in one wide column — is kept in
-  one piece and shrunk to fit that width.
+  zoom level from start to finish. Content wider than a column is shrunk to
+  fit, to about half size.
+- With `--sideways`, wide figures and tables are turned a quarter turn and
+  shown large instead of shrunk small. Read them with the phone held sideways,
+  with its screen rotation locked.
 - A document with no two-column layout at all is refused with a message, not
   cut.
 - Links inside the document are dropped for now.

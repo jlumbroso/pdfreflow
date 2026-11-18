@@ -20,6 +20,7 @@ use std::path::Path;
 
 use lopdf::{Document, ObjectId};
 
+pub use layout::Options;
 use layout::{Layout, LayoutError, PageInk, Piece};
 
 #[derive(Debug)]
@@ -77,7 +78,7 @@ pub struct Report {
 }
 
 /// Rewrites `doc` in place so that each column is its own page.
-pub fn reflow(doc: &mut Document) -> Result<Report, Error> {
+pub fn reflow(doc: &mut Document, options: Options) -> Result<Report, Error> {
     let page_ids: Vec<ObjectId> = doc.get_pages().into_values().collect();
     let pages: Vec<PageInk> = page_ids
         .iter()
@@ -88,7 +89,7 @@ pub fn reflow(doc: &mut Document) -> Result<Report, Error> {
         })
         .collect();
     let layout = layout::detect(&pages)?;
-    let plans = layout::plan(&pages, &layout);
+    let plans = layout::plan(&pages, &layout, options);
     let output_pages = cut::apply(doc, &page_ids, &plans)?;
     doc.prune_objects();
     Ok(Report {
@@ -100,12 +101,12 @@ pub fn reflow(doc: &mut Document) -> Result<Report, Error> {
 }
 
 /// Reads `input`, reflows it and writes the result to `output`.
-pub fn reflow_file(input: &Path, output: &Path) -> Result<Report, Error> {
+pub fn reflow_file(input: &Path, output: &Path, options: Options) -> Result<Report, Error> {
     let mut doc = Document::load(input)?;
     if doc.is_encrypted() {
         return Err(Error::Encrypted);
     }
-    let report = reflow(&mut doc)?;
+    let report = reflow(&mut doc, options)?;
     doc.save(output)?;
     Ok(report)
 }

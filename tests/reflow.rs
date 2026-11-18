@@ -6,11 +6,11 @@
 //! this repository (see CLAUDE.md, "Confidential inputs").
 
 use lopdf::content::{Content, Operation};
-use lopdf::{Document, Object, Stream, dictionary};
+use lopdf::{Document, Object, ObjectId, Stream, dictionary};
 
 use pdfreflow::geom::Rect;
 use pdfreflow::layout::LayoutError;
-use pdfreflow::{Error, cut, ink, reflow};
+use pdfreflow::{Error, Options, cut, ink, reflow};
 
 // The synthetic paper: US Letter, Courier 10pt (every glyph 6pt wide), two
 // columns of 40 characters with a 24pt gap, lines 12pt apart.
@@ -23,13 +23,24 @@ const BOTTOM: i32 = 100;
 // baseline and 2.2 below.
 const ASCENT: f64 = 7.5;
 const DESCENT: f64 = 2.2;
-// White space the tool leaves around a crop.
+// White space the tool leaves around a column, and around a full-width band.
 const PAD: f64 = 4.0;
+const BAND_PAD: f64 = 2.0;
+// The full width of the text, from the left column's edge to the right one's,
+// with its white space: what a full-width piece is cut to before shrinking.
+const FULL_WIDTH: f64 = RIGHT + COLUMN_WIDTH - LEFT + 2.0 * PAD;
 
 struct Line {
     x: f64,
     y: i32,
     chars: usize,
+}
+
+/// One page of the synthetic paper: lines of text, and filled rectangles that
+/// stand in for figures.
+struct Page {
+    lines: Vec<Line>,
+    figures: Vec<Rect>,
 }
 
 /// A column of full-width lines from baseline `from` down to baseline `to`.
@@ -41,24 +52,35 @@ fn column(x: f64, from: i32, to: i32) -> Vec<Line> {
         .collect()
 }
 
-/// What every page of a paper carries outside its text block: a running header
-/// above the left column and a page number centred in the gap.
-fn furniture() -> Vec<Line> {
-    vec![
-        Line {
-            x: LEFT,
-            y: 750,
-            chars: 16,
-        },
-        Line {
-            x: 303.0,
-            y: 60,
-            chars: 1,
-        },
-    ]
+/// A page with what every page of a paper carries outside its text block: a
+/// running header above the left column and a page number centred in the gap.
+fn page() -> Page {
+    Page {
+        lines: vec![
+            Line {
+                x: LEFT,
+                y: 750,
+                chars: 16,
+            },
+            Line {
+                x: 303.0,
+                y: 60,
+                chars: 1,
+            },
+        ],
+        figures: Vec::new(),
+    }
 }
 
-fn paper(pages: Vec<Vec<Line>>) -> Document {
+/// An ordinary page: two full columns.
+fn plain_page() -> Page {
+    let mut plain = page();
+    plain.lines.extend(column(LEFT, TOP, BOTTOM));
+    plain.lines.extend(column(RIGHT, TOP, BOTTOM));
+    plain
+}
+
+fn paper(pages: Vec<Page>) -> Document {
     let mut doc = Document::with_version("1.5");
     let pages_id = doc.new_object_id();
     let font_id = doc.add_object(dictionary! {
@@ -73,9 +95,17 @@ fn paper(pages: Vec<Vec<Line>>) -> Document {
         "Font" => dictionary! { "F1" => font_id },
     });
     let mut kids: Vec<Object> = Vec::new();
-    for lines in &pages {
+    for page in &pages {
         let mut operations = Vec::new();
-        for line in lines {
+        for figure in &page.figures {
+            let numbers = [figure.x0, figure.y0, figure.width(), figure.height()];
+            operations.push(Operation::new(
+                "re",
+                numbers.iter().map(|&n| Object::Real(n as f32)).collect(),
+            ));
+            operations.push(Operation::new("f", vec![]));
+        }
+        for line in &page.lines {
             operations.push(Operation::new("BT", vec![]));
             operations.push(Operation::new("Tf", vec!["F1".into(), 10.into()]));
             operations.push(Operation::new(
@@ -118,51 +148,72 @@ fn paper(pages: Vec<Vec<Line>>) -> Document {
 }
 
 /// A three-page paper:
-/// - page 1 has a title that crosses the gap, above two full columns;
+/// - page 1 has a two-line title that crosses the gap, above two full columns;
 /// - page 2 has a full left column and a right column that stops halfway;
 /// - page 3 has six lines in the left column and nothing on the right.
 fn three_page_paper() -> Document {
-    let mut first = furniture();
-    first.push(Line {
+    let mut first = page();
+    first.lines.extend([700, 688].map(|y| Line {
         x: 150.0,
-        y: 700,
+        y,
         chars: 52,
-    });
-    first.push(Line {
-        x: 150.0,
-        y: 688,
-        chars: 52,
-    });
-    first.extend(column(LEFT, 664, BOTTOM));
-    first.extend(column(RIGHT, 664, BOTTOM));
+    }));
+    first.lines.extend(column(LEFT, 664, BOTTOM));
+    first.lines.extend(column(RIGHT, 664, BOTTOM));
 
-    let mut second = furniture();
-    second.extend(column(LEFT, TOP, BOTTOM));
-    second.extend(column(RIGHT, TOP, 400));
+    let mut second = page();
+    second.lines.extend(column(LEFT, TOP, BOTTOM));
+    second.lines.extend(column(RIGHT, TOP, 400));
 
-    let mut third = furniture();
-    third.extend(column(LEFT, TOP, 640));
+    let mut third = page();
+    third.lines.extend(column(LEFT, TOP, 640));
 
     paper(vec![first, second, third])
 }
 
-/// Reflows a document, writes it to a PDF in memory, and reads that PDF back:
-/// what a reader would open.
-fn reflowed(mut doc: Document) -> Document {
-    reflow(&mut doc).expect("the paper should reflow");
-    let mut bytes = Vec::new();
-    doc.save_to(&mut bytes).expect("the result should save");
-    Document::load_mem(&bytes).expect("the result should be a readable PDF")
+/// What a reader would open: the document reflowed, written to a PDF in
+/// memory, and read back. Gives the pages in order, each with its visible
+/// rectangle.
+struct Reflowed {
+    doc: Document,
+    ids: Vec<ObjectId>,
+    pages: Vec<Rect>,
 }
 
-/// The visible rectangle of each page of a reflowed document, in order.
-fn reflowed_pages(doc: Document) -> Vec<Rect> {
-    let written = reflowed(doc);
-    written
-        .get_pages()
-        .into_values()
-        .map(|id| cut::page_box(&written, id))
-        .collect()
+impl Reflowed {
+    /// How wide a page is on screen, its quarter turn (if any) applied.
+    fn shown_width(&self, index: usize) -> f64 {
+        if cut::page_rotation(&self.doc, self.ids[index]) % 180 == 0 {
+            self.pages[index].width()
+        } else {
+            self.pages[index].height()
+        }
+    }
+
+    /// The boxes of the text that is visible on a page.
+    fn visible_text(&self, index: usize) -> Vec<Rect> {
+        let page = self.pages[index];
+        ink::page_ink(&self.doc, self.ids[index])
+            .into_iter()
+            .filter(|ink| ink.kind == ink::InkKind::Text)
+            .map(|ink| ink.rect)
+            .filter(|rect| rect.y0 >= page.y0 && rect.y1 <= page.y1)
+            .collect()
+    }
+}
+
+fn reflowed_with(mut doc: Document, options: Options) -> Reflowed {
+    reflow(&mut doc, options).expect("the paper should reflow");
+    let mut bytes = Vec::new();
+    doc.save_to(&mut bytes).expect("the result should save");
+    let doc = Document::load_mem(&bytes).expect("the result should be a readable PDF");
+    let ids: Vec<ObjectId> = doc.get_pages().into_values().collect();
+    let pages = ids.iter().map(|&id| cut::page_box(&doc, id)).collect();
+    Reflowed { doc, ids, pages }
+}
+
+fn reflowed(doc: Document) -> Reflowed {
+    reflowed_with(doc, Options::default())
 }
 
 fn assert_near(actual: f64, expected: f64, what: &str) {
@@ -172,56 +223,87 @@ fn assert_near(actual: f64, expected: f64, what: &str) {
     );
 }
 
+fn assert_left_column(page: &Rect) {
+    assert_near(page.x0, LEFT - PAD, "left column, left edge");
+    assert_near(
+        page.x1,
+        LEFT + COLUMN_WIDTH + PAD,
+        "left column, right edge",
+    );
+}
+
+fn assert_right_column(page: &Rect) {
+    assert_near(page.x0, RIGHT - PAD, "right column, left edge");
+    assert_near(
+        page.x1,
+        RIGHT + COLUMN_WIDTH + PAD,
+        "right column, right edge",
+    );
+}
+
 #[test]
 fn each_column_becomes_its_own_page_in_reading_order() {
-    let pages = reflowed_pages(three_page_paper());
+    let result = reflowed(three_page_paper());
+    let pages = &result.pages;
 
-    // Two columns, two columns, then a page whose right column is empty.
-    assert_eq!(pages.len(), 5);
+    // The title, then two columns, two columns, and a page whose right column
+    // is empty.
+    assert_eq!(pages.len(), 6);
+    assert_left_column(&pages[1]);
+    assert_right_column(&pages[2]);
+    assert_left_column(&pages[3]);
+    assert_right_column(&pages[4]);
+    assert_left_column(&pages[5]);
+}
 
-    let is_left = |page: &Rect| {
-        assert_near(page.x0, LEFT - PAD, "left crop, left edge");
-        assert_near(page.x1, LEFT + COLUMN_WIDTH + PAD, "left crop, right edge");
-    };
-    let is_right = |page: &Rect| {
-        assert_near(page.x0, RIGHT - PAD, "right crop, left edge");
-        assert_near(
-            page.x1,
-            RIGHT + COLUMN_WIDTH + PAD,
-            "right crop, right edge",
+#[test]
+fn a_title_across_both_columns_comes_first_and_stays_whole() {
+    let result = reflowed(three_page_paper());
+
+    // The first page of the result is the title alone: both of its lines,
+    // complete, and nothing else.
+    let title = result.pages[0];
+    let lines = result.visible_text(0);
+    assert_eq!(lines.len(), 2);
+    for line in &lines {
+        assert!(
+            line.x0 >= title.x0 && line.x1 <= title.x1,
+            "a title line is cut off: {line:?} in {title:?}"
         );
-    };
-    is_left(&pages[0]);
-    is_right(&pages[1]);
-    is_left(&pages[2]);
-    is_right(&pages[3]);
-    is_left(&pages[4]);
+    }
+    // The columns under it start below the title, not through it.
+    assert_near(
+        result.pages[1].y1,
+        664.0 + ASCENT + PAD,
+        "first column, top edge",
+    );
 }
 
 #[test]
 fn crops_are_tight_and_leave_out_the_header_and_page_number() {
-    let pages = reflowed_pages(three_page_paper());
+    let result = reflowed(three_page_paper());
+    let pages = &result.pages;
     let top = f64::from(TOP) + ASCENT + PAD;
     let bottom = f64::from(BOTTOM) - DESCENT - PAD;
 
     // Full columns run from the top of the text block to its bottom. The
     // running header (baseline 750) and the page number (baseline 60) are
     // outside every crop, although the page number sits right in the gap.
-    for page in &pages[0..3] {
-        assert_near(page.y1, top, "full column, top edge");
+    assert_near(pages[3].y1, top, "full column, top edge");
+    for page in &pages[1..4] {
         assert_near(page.y0, bottom, "full column, bottom edge");
     }
 
     // A column that stops halfway down gives a short page, not a tall one
     // that is half empty.
-    assert_near(pages[3].y1, top, "half column, top edge");
+    assert_near(pages[4].y1, top, "half column, top edge");
     assert_near(
-        pages[3].y0,
+        pages[4].y0,
         400.0 - DESCENT - PAD,
         "half column, bottom edge",
     );
     assert_near(
-        pages[4].y0,
+        pages[5].y0,
         640.0 - DESCENT - PAD,
         "six-line column, bottom edge",
     );
@@ -230,25 +312,122 @@ fn crops_are_tight_and_leave_out_the_header_and_page_number() {
 #[test]
 fn the_cut_shares_the_page_content_instead_of_copying_it() {
     let mut doc = three_page_paper();
-    let before: Vec<Vec<u8>> = doc
-        .get_pages()
-        .into_values()
-        .map(|id| doc.get_page_content(id))
-        .collect();
-    reflow(&mut doc).unwrap();
-    let after: Vec<Vec<u8>> = doc
-        .get_pages()
-        .into_values()
-        .map(|id| doc.get_page_content(id))
-        .collect();
+    let contents = |doc: &Document| -> Vec<Vec<u8>> {
+        doc.get_pages()
+            .into_values()
+            .map(|id| doc.get_page_content(id))
+            .collect()
+    };
+    let before = contents(&doc);
+    reflow(&mut doc, Options::default()).unwrap();
+    let after = contents(&doc);
 
-    // Both halves of a source page still draw the whole source page; only the
+    // Every piece of a source page still draws the whole source page; only the
     // page box differs. This is what keeps text sharp and selectable.
-    assert_eq!(after[0], before[0]);
     assert_eq!(after[1], before[0]);
-    assert_eq!(after[2], before[1]);
+    assert_eq!(after[2], before[0]);
     assert_eq!(after[3], before[1]);
-    assert_eq!(after[4], before[2]);
+    assert_eq!(after[4], before[1]);
+    assert_eq!(after[5], before[2]);
+    // The shrunk title is the same drawing again, wrapped in a scaling
+    // instruction, not a redrawn or rendered copy.
+    assert!(
+        after[0]
+            .windows(before[0].len())
+            .any(|part| part == before[0]),
+        "the title page should still contain the source page's drawing"
+    );
+}
+
+/// A figure (a filled rectangle with a caption under it) across both columns
+/// at the top of a page, with the two columns below it; then an ordinary page.
+fn paper_with_a_spanning_figure() -> Document {
+    let mut first = page();
+    first.figures.push(Rect::new(60.0, 560.0, 552.0, 700.0));
+    first.lines.push(Line {
+        x: 100.0,
+        y: 540,
+        chars: 68,
+    });
+    first.lines.extend(column(LEFT, 508, BOTTOM));
+    first.lines.extend(column(RIGHT, 508, BOTTOM));
+    paper(vec![first, plain_page()])
+}
+
+#[test]
+fn a_figure_across_both_columns_is_kept_whole_on_its_own_page() {
+    let result = reflowed(paper_with_a_spanning_figure());
+
+    // The figure with its caption, then the columns below it, then page 2.
+    assert_eq!(result.pages.len(), 5);
+    let figure = result.pages[0];
+    // Shrunk to the width of a column, and as tall as figure plus caption.
+    let scale = figure.width() / FULL_WIDTH;
+    let height = (700.0 + BAND_PAD) - (540.0 - DESCENT - BAND_PAD);
+    assert_near(
+        figure.height(),
+        height * scale,
+        "figure page, height once shrunk",
+    );
+    assert_eq!(
+        result.visible_text(0).len(),
+        1,
+        "the caption stays with the figure"
+    );
+    assert_left_column(&result.pages[1]);
+    assert_near(
+        result.pages[1].y1,
+        508.0 + ASCENT + PAD,
+        "column under the figure, top edge",
+    );
+}
+
+#[test]
+fn with_the_sideways_option_a_wide_figure_is_turned_and_shown_larger() {
+    let upright = reflowed(paper_with_a_spanning_figure());
+    let sideways = reflowed_with(paper_with_a_spanning_figure(), Options { sideways: true });
+
+    assert_eq!(
+        cut::page_rotation(&sideways.doc, sideways.ids[0]),
+        270,
+        "the figure page should be turned a quarter turn"
+    );
+    // Turned, the figure is drawn larger than life; shrunk, at half size.
+    // (Before the turn is applied, the page box's width is the figure's.)
+    assert!(sideways.pages[0].width() > 1.2 * FULL_WIDTH);
+    assert!(upright.pages[0].width() < 0.6 * FULL_WIDTH);
+    // It is still no wider on screen than a column, so the zoom is untouched.
+    let column_width = sideways.shown_width(1);
+    assert!(sideways.shown_width(0) <= column_width + 0.1);
+    // The columns are not turned.
+    assert_eq!(cut::page_rotation(&sideways.doc, sideways.ids[1]), 0);
+}
+
+#[test]
+fn with_the_sideways_option_stacked_figures_are_turned_one_by_one() {
+    // The page that started ADR-0003: nothing on it but full-width figures,
+    // one above the other, each with its caption.
+    let mut figures = page();
+    for (top, caption) in [(680.0, 480), (380.0, 180)] {
+        figures
+            .figures
+            .push(Rect::new(60.0, top - 180.0, 552.0, top));
+        figures.lines.push(Line {
+            x: 100.0,
+            y: caption,
+            chars: 68,
+        });
+    }
+    let doc = paper(vec![plain_page(), plain_page(), figures]);
+
+    let result = reflowed_with(doc, Options { sideways: true });
+
+    // Four columns, then one turned page per figure, each with its caption.
+    assert_eq!(result.pages.len(), 6);
+    for index in [4, 5] {
+        assert_eq!(cut::page_rotation(&result.doc, result.ids[index]), 270);
+        assert_eq!(result.visible_text(index).len(), 1);
+    }
 }
 
 #[test]
@@ -260,16 +439,13 @@ fn a_sideways_page_comes_out_as_wide_as_a_column() {
     let last = doc.get_pages().into_values().last().unwrap();
     doc.get_dictionary_mut(last).unwrap().set("Rotate", 90);
 
-    let written = reflowed(doc);
-    let ids: Vec<_> = written.get_pages().into_values().collect();
-    let column_width = cut::page_box(&written, ids[0]).width();
-    let sideways = cut::page_box(&written, *ids.last().unwrap());
+    let result = reflowed(doc);
+    let last = result.pages.len() - 1;
 
-    assert_eq!(cut::page_rotation(&written, *ids.last().unwrap()), 90);
-    // A page turned a quarter is shown as wide as its box is tall.
+    assert_eq!(cut::page_rotation(&result.doc, result.ids[last]), 90);
     assert_near(
-        sideways.height(),
-        column_width,
+        result.shown_width(last),
+        result.shown_width(1),
         "sideways page, width on screen",
     );
 }
@@ -286,17 +462,17 @@ mod regression_tests {
         // Fix: find the columns from the typical page instead (a median over
         // pages, `layout::detect`), so a minority of unusual pages cannot hide
         // the gap. ADR-0002, Iteration 2.
-        let pages = reflowed_pages(paper_with_a_wide_page());
+        let result = reflowed(paper_with_a_wide_page());
+        let pages = &result.pages;
 
         // The two ordinary pages are cut; the wide page stays in one piece,
         // which therefore has the proportions of the whole text block and not
         // of a column.
         assert_eq!(pages.len(), 5);
-        let block_width = RIGHT + COLUMN_WIDTH - LEFT + 2.0 * PAD;
         let block_height = f64::from(TOP - BOTTOM) + ASCENT + DESCENT + 2.0 * PAD;
         let proportions = pages[4].height() / pages[4].width();
         assert!(
-            (proportions - block_height / block_width).abs() < 0.02,
+            (proportions - block_height / FULL_WIDTH).abs() < 0.02,
             "the wide page should keep the text block's proportions, got {proportions}"
         );
     }
@@ -309,30 +485,24 @@ mod regression_tests {
         // that one page zoomed every other page out and the reflow was undone.
         // Fix: every output page has the same width; content wider than a
         // column is shrunk to fit. ADR-0003, QST-WIDE-PAGES.
-        let written = reflowed(paper_with_a_wide_page());
-        let ids: Vec<_> = written.get_pages().into_values().collect();
-        let pages: Vec<Rect> = ids.iter().map(|&id| cut::page_box(&written, id)).collect();
+        let result = reflowed(paper_with_a_wide_page());
 
-        let width = pages[0].width();
-        for (index, page) in pages.iter().enumerate() {
+        let width = result.shown_width(0);
+        for index in 0..result.pages.len() {
             assert!(
-                (page.width() - width).abs() < 0.1,
+                (result.shown_width(index) - width).abs() < 0.1,
                 "page {} is {} wide, the first is {width}",
                 index + 1,
-                page.width()
+                result.shown_width(index)
             );
         }
 
         // Shrinking must move the text along with the page: all 51 lines of
         // the wide page are drawn inside the shrunk page, edge to edge.
-        let wide = pages[4];
-        let lines: Vec<Rect> = ink::page_ink(&written, ids[4])
-            .into_iter()
-            .map(|ink| ink.rect)
-            .filter(|rect| rect.y0 >= wide.y0 && rect.y1 <= wide.y1)
-            .collect();
+        let wide = result.pages[4];
+        let lines = result.visible_text(4);
         assert_eq!(lines.len(), 51);
-        let scale = width / (RIGHT + COLUMN_WIDTH - LEFT + 2.0 * PAD);
+        let scale = width / FULL_WIDTH;
         for line in &lines {
             assert_near(line.x0, wide.x0 + PAD * scale, "shrunk line, left end");
             assert_near(line.x1, wide.x1 - PAD * scale, "shrunk line, right end");
@@ -343,19 +513,14 @@ mod regression_tests {
     /// a full-width abstract page): 84 characters from the left edge of the
     /// left column to the right edge of the right one.
     fn paper_with_a_wide_page() -> Document {
-        let mut wide = furniture();
-        wide.extend((BOTTOM..=TOP).rev().step_by(12).map(|y| Line {
-            x: LEFT,
-            y,
-            chars: 84,
-        }));
-        let mut plain = furniture();
-        plain.extend(column(LEFT, TOP, BOTTOM));
-        plain.extend(column(RIGHT, TOP, BOTTOM));
-        let mut plain_again = furniture();
-        plain_again.extend(column(LEFT, TOP, BOTTOM));
-        plain_again.extend(column(RIGHT, TOP, BOTTOM));
-        paper(vec![plain, plain_again, wide])
+        let mut wide = page();
+        wide.lines
+            .extend((BOTTOM..=TOP).rev().step_by(12).map(|y| Line {
+                x: LEFT,
+                y,
+                chars: 84,
+            }));
+        paper(vec![plain_page(), plain_page(), wide])
     }
 }
 
@@ -370,9 +535,12 @@ fn a_one_column_document_is_refused_rather_than_cut_down_the_middle() {
             chars: 84,
         })
         .collect();
-    let mut doc = paper(vec![lines]);
+    let mut doc = paper(vec![Page {
+        lines,
+        figures: Vec::new(),
+    }]);
 
-    let result = reflow(&mut doc);
+    let result = reflow(&mut doc, Options::default());
 
     assert!(matches!(
         result,
@@ -395,21 +563,29 @@ fn the_stand_in_paper_splits_into_columns() {
         .map(|id| cut::page_box(&doc, id))
         .collect();
 
-    let report = reflow(&mut doc).expect("the stand-in paper should reflow");
+    let report = reflow(&mut doc, Options::default()).expect("the stand-in paper should reflow");
 
-    // Every page of a two-column article yields one or two columns.
+    // Every page of a two-column article yields at least its columns, and
+    // every page of the result is one column wide.
     assert!(report.output_pages > source.len());
-    assert!(report.output_pages <= 2 * source.len());
-    let page_width = source[0].width();
-    for id in doc.get_pages().into_values() {
-        let crop = cut::page_box(&doc, id);
+    let widths: Vec<f64> = doc
+        .get_pages()
+        .into_values()
+        .map(|id| cut::page_box(&doc, id).width())
+        .collect();
+    for width in &widths {
         assert!(
-            crop.width() < 0.5 * page_width,
-            "a crop is wider than half the page"
+            (width - widths[0]).abs() < 0.1,
+            "pages differ in width: {width} and {}",
+            widths[0]
         );
         assert!(
-            crop.width() > 0.3 * page_width,
-            "a crop is implausibly narrow"
+            *width < 0.5 * source[0].width(),
+            "a page is wider than half the source page"
+        );
+        assert!(
+            *width > 0.3 * source[0].width(),
+            "a page is implausibly narrow"
         );
     }
 }
