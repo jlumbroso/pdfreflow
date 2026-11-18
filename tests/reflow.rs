@@ -10,7 +10,7 @@ use lopdf::{Document, Object, Stream, dictionary};
 
 use pdfreflow::geom::Rect;
 use pdfreflow::layout::LayoutError;
-use pdfreflow::{Error, cut, reflow};
+use pdfreflow::{Error, cut, ink, reflow};
 
 // The synthetic paper: US Letter, Courier 10pt (every glyph 6pt wide), two
 // columns of 40 characters with a 24pt gap, lines 12pt apart.
@@ -146,13 +146,18 @@ fn three_page_paper() -> Document {
     paper(vec![first, second, third])
 }
 
-/// Reflows a document, writes it to a PDF in memory, reads that PDF back, and
-/// returns the visible rectangle of each page of the result, in order.
-fn reflowed_pages(mut doc: Document) -> Vec<Rect> {
+/// Reflows a document, writes it to a PDF in memory, and reads that PDF back:
+/// what a reader would open.
+fn reflowed(mut doc: Document) -> Document {
     reflow(&mut doc).expect("the paper should reflow");
     let mut bytes = Vec::new();
     doc.save_to(&mut bytes).expect("the result should save");
-    let written = Document::load_mem(&bytes).expect("the result should be a readable PDF");
+    Document::load_mem(&bytes).expect("the result should be a readable PDF")
+}
+
+/// The visible rectangle of each page of a reflowed document, in order.
+fn reflowed_pages(doc: Document) -> Vec<Rect> {
+    let written = reflowed(doc);
     written
         .get_pages()
         .into_values()
@@ -246,6 +251,29 @@ fn the_cut_shares_the_page_content_instead_of_copying_it() {
     assert_eq!(after[4], before[2]);
 }
 
+#[test]
+fn a_sideways_page_comes_out_as_wide_as_a_column() {
+    // Papers sometimes store a page turned on its side (a landscape table).
+    // Such a page is not searched for columns, but it must still not be wider
+    // than the others on screen.
+    let mut doc = three_page_paper();
+    let last = doc.get_pages().into_values().last().unwrap();
+    doc.get_dictionary_mut(last).unwrap().set("Rotate", 90);
+
+    let written = reflowed(doc);
+    let ids: Vec<_> = written.get_pages().into_values().collect();
+    let column_width = cut::page_box(&written, ids[0]).width();
+    let sideways = cut::page_box(&written, *ids.last().unwrap());
+
+    assert_eq!(cut::page_rotation(&written, *ids.last().unwrap()), 90);
+    // A page turned a quarter is shown as wide as its box is tall.
+    assert_near(
+        sideways.height(),
+        column_width,
+        "sideways page, width on screen",
+    );
+}
+
 mod regression_tests {
     use super::*;
 
@@ -258,10 +286,63 @@ mod regression_tests {
         // Fix: find the columns from the typical page instead (a median over
         // pages, `layout::detect`), so a minority of unusual pages cannot hide
         // the gap. ADR-0002, Iteration 2.
-        //
-        // Two ordinary pages, then a page set in one wide column (an appendix,
-        // or a full-width abstract page): 84 characters from the left edge of
-        // the left column to the right edge of the right one.
+        let pages = reflowed_pages(paper_with_a_wide_page());
+
+        // The two ordinary pages are cut; the wide page stays in one piece,
+        // which therefore has the proportions of the whole text block and not
+        // of a column.
+        assert_eq!(pages.len(), 5);
+        let block_width = RIGHT + COLUMN_WIDTH - LEFT + 2.0 * PAD;
+        let block_height = f64::from(TOP - BOTTOM) + ASCENT + DESCENT + 2.0 * PAD;
+        let proportions = pages[4].height() / pages[4].width();
+        assert!(
+            (proportions - block_height / block_width).abs() < 0.02,
+            "the wide page should keep the text block's proportions, got {proportions}"
+        );
+    }
+
+    #[test]
+    fn one_wide_page_does_not_make_every_other_page_look_small() {
+        // Bug (found 2026-11-18 by the human, reading a real manuscript on a
+        // phone): a page kept in one piece came out twice as wide as the
+        // column pages. A phone reader sizes its view to the widest page, so
+        // that one page zoomed every other page out and the reflow was undone.
+        // Fix: every output page has the same width; content wider than a
+        // column is shrunk to fit. ADR-0003, QST-WIDE-PAGES.
+        let written = reflowed(paper_with_a_wide_page());
+        let ids: Vec<_> = written.get_pages().into_values().collect();
+        let pages: Vec<Rect> = ids.iter().map(|&id| cut::page_box(&written, id)).collect();
+
+        let width = pages[0].width();
+        for (index, page) in pages.iter().enumerate() {
+            assert!(
+                (page.width() - width).abs() < 0.1,
+                "page {} is {} wide, the first is {width}",
+                index + 1,
+                page.width()
+            );
+        }
+
+        // Shrinking must move the text along with the page: all 51 lines of
+        // the wide page are drawn inside the shrunk page, edge to edge.
+        let wide = pages[4];
+        let lines: Vec<Rect> = ink::page_ink(&written, ids[4])
+            .into_iter()
+            .map(|ink| ink.rect)
+            .filter(|rect| rect.y0 >= wide.y0 && rect.y1 <= wide.y1)
+            .collect();
+        assert_eq!(lines.len(), 51);
+        let scale = width / (RIGHT + COLUMN_WIDTH - LEFT + 2.0 * PAD);
+        for line in &lines {
+            assert_near(line.x0, wide.x0 + PAD * scale, "shrunk line, left end");
+            assert_near(line.x1, wide.x1 - PAD * scale, "shrunk line, right end");
+        }
+    }
+
+    /// Two ordinary pages, then a page set in one wide column (an appendix, or
+    /// a full-width abstract page): 84 characters from the left edge of the
+    /// left column to the right edge of the right one.
+    fn paper_with_a_wide_page() -> Document {
         let mut wide = furniture();
         wide.extend((BOTTOM..=TOP).rev().step_by(12).map(|y| Line {
             x: LEFT,
@@ -274,17 +355,7 @@ mod regression_tests {
         let mut plain_again = furniture();
         plain_again.extend(column(LEFT, TOP, BOTTOM));
         plain_again.extend(column(RIGHT, TOP, BOTTOM));
-
-        let pages = reflowed_pages(paper(vec![plain, plain_again, wide]));
-
-        // The two ordinary pages are cut; the wide page stays in one piece.
-        assert_eq!(pages.len(), 5);
-        assert_near(pages[4].x0, LEFT - PAD, "wide page, left edge");
-        assert_near(
-            pages[4].x1,
-            RIGHT + COLUMN_WIDTH + PAD,
-            "wide page, right edge",
-        );
+        paper(vec![plain, plain_again, wide])
     }
 }
 

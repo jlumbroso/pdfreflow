@@ -4,11 +4,11 @@
 //! instructions, fonts and images are shared, not copied or changed, so text
 //! stays text and the file barely grows (ADR-0002).
 
-use lopdf::{Dictionary, Document, Object, ObjectId, Result};
+use lopdf::{Dictionary, Document, Object, ObjectId, Result, Stream};
 
 use crate::geom::Rect;
 use crate::ink::numbers;
-use crate::layout::PagePlan;
+use crate::layout::Piece;
 
 /// US Letter, the PDF default when a page declares no size at all.
 const DEFAULT_PAGE: Rect = Rect {
@@ -71,11 +71,13 @@ fn rect_array(rect: &Rect) -> Object {
 
 /// Replaces the document's page list according to `plans` (one per source
 /// page, in order) and returns the new page count.
-pub fn apply(doc: &mut Document, page_ids: &[ObjectId], plans: &[PagePlan]) -> Result<usize> {
+pub fn apply(doc: &mut Document, page_ids: &[ObjectId], plans: &[Vec<Piece>]) -> Result<usize> {
     let root = doc.catalog()?.get(b"Pages")?.as_reference()?;
     let mut kids: Vec<ObjectId> = Vec::new();
+    // The instruction that closes a shrunk page's wrapper, shared by all of them.
+    let mut restore: Option<ObjectId> = None;
 
-    for (&page_id, plan) in page_ids.iter().zip(plans) {
+    for (&page_id, pieces) in page_ids.iter().zip(plans) {
         // The new page list is flat, so anything the page used to inherit from
         // an intermediate node must be written onto the page itself.
         let mut page: Dictionary = doc.get_dictionary(page_id)?.clone();
@@ -89,31 +91,64 @@ pub fn apply(doc: &mut Document, page_ids: &[ObjectId], plans: &[PagePlan]) -> R
         }
         page.set("Parent", Object::Reference(root));
 
-        match plan {
-            PagePlan::Keep => {
-                doc.set_object(page_id, page);
-                kids.push(page_id);
-            }
-            PagePlan::Crops(crops) => {
-                // These describe the whole page and no longer hold for a piece
-                // of it. Links (`Annots`) are dropped for now: see ADR-0002.
-                let stale: [&[u8]; 5] = [b"TrimBox", b"BleedBox", b"ArtBox", b"Annots", b"B"];
-                for key in stale {
-                    page.remove(key);
-                }
-                for (index, crop) in crops.iter().enumerate() {
-                    let mut piece = page.clone();
-                    piece.set("MediaBox", rect_array(crop));
-                    piece.set("CropBox", rect_array(crop));
-                    if index == 0 {
-                        // The first piece keeps the source page's identity, so
-                        // bookmarks into the page still land on it.
-                        doc.set_object(page_id, piece);
-                        kids.push(page_id);
-                    } else {
-                        kids.push(doc.add_object(piece));
+        // These describe the whole page and no longer hold for a piece of it.
+        // Links (`Annots`) are dropped for now: see ADR-0002.
+        let stale: [&[u8]; 5] = [b"TrimBox", b"BleedBox", b"ArtBox", b"Annots", b"B"];
+        for key in stale {
+            page.remove(key);
+        }
+
+        for (index, piece) in pieces.iter().enumerate() {
+            let mut dict = page.clone();
+            let shown = if piece.scale == 1.0 {
+                // A column: the same drawing, seen through a narrower window.
+                piece.rect
+            } else {
+                // Wider than a column: the same drawing again, but wrapped in
+                // one instruction that shrinks it and moves the piece's corner
+                // to the origin. Still nothing is rendered.
+                let scale = piece.scale;
+                let shrink = format!(
+                    "q {scale:.5} 0 0 {scale:.5} {:.3} {:.3} cm\n",
+                    -piece.rect.x0 * scale,
+                    -piece.rect.y0 * scale
+                );
+                let open = doc.add_object(Stream::new(Dictionary::new(), shrink.into_bytes()));
+                let close = match restore {
+                    Some(id) => id,
+                    None => {
+                        let id = doc.add_object(Stream::new(Dictionary::new(), b"\nQ".to_vec()));
+                        restore = Some(id);
+                        id
                     }
+                };
+                let mut contents = vec![Object::Reference(open)];
+                match dict.get(b"Contents") {
+                    Ok(Object::Array(streams)) => contents.extend(streams.iter().cloned()),
+                    Ok(Object::Reference(id)) => match doc.get_object(*id) {
+                        Ok(Object::Array(streams)) => contents.extend(streams.iter().cloned()),
+                        _ => contents.push(Object::Reference(*id)),
+                    },
+                    _ => {}
                 }
+                contents.push(Object::Reference(close));
+                dict.set("Contents", Object::Array(contents));
+                Rect::new(
+                    0.0,
+                    0.0,
+                    piece.rect.width() * scale,
+                    piece.rect.height() * scale,
+                )
+            };
+            dict.set("MediaBox", rect_array(&shown));
+            dict.set("CropBox", rect_array(&shown));
+            if index == 0 {
+                // The first piece keeps the source page's identity, so
+                // bookmarks into the page still land on it.
+                doc.set_object(page_id, dict);
+                kids.push(page_id);
+            } else {
+                kids.push(doc.add_object(dict));
             }
         }
     }

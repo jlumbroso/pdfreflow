@@ -20,7 +20,7 @@ use std::path::Path;
 
 use lopdf::{Document, ObjectId};
 
-use layout::{Layout, LayoutError, PageInk, PagePlan};
+use layout::{Layout, LayoutError, PageInk, Piece};
 
 #[derive(Debug)]
 pub enum Error {
@@ -72,8 +72,8 @@ pub struct Report {
     pub source_pages: usize,
     pub output_pages: usize,
     pub layout: Layout,
-    /// One plan per source page, in order.
-    pub plans: Vec<PagePlan>,
+    /// For each source page, in order, the pieces that replace it.
+    pub plans: Vec<Vec<Piece>>,
 }
 
 /// Rewrites `doc` in place so that each column is its own page.
@@ -83,7 +83,7 @@ pub fn reflow(doc: &mut Document) -> Result<Report, Error> {
         .iter()
         .map(|&id| PageInk {
             media: cut::page_box(doc, id),
-            upright: cut::page_rotation(doc, id) % 360 == 0,
+            rotation: cut::page_rotation(doc, id).rem_euclid(360),
             boxes: ink::page_ink(doc, id),
         })
         .collect();

@@ -31,8 +31,11 @@ output is safe to share when the paper itself is not.
 - Anything that spans both columns — the title on the first page, a wide
   figure or table — is cut down the middle. This is the first version's known
   limit.
-- A page set in a single column inside a two-column paper is kept in one piece.
-  A document with no two-column layout at all is refused with a message, not
+- Every page of the result has the same width, so a phone reader keeps one
+  zoom level from start to finish. A page that cannot be cut into columns — a
+  page of full-width figures, an appendix set in one wide column — is kept in
+  one piece and shrunk to fit that width.
+- A document with no two-column layout at all is refused with a message, not
   cut.
 - Links inside the document are dropped for now.
 - Scanned documents (pictures of pages, with no text inside) are not supported

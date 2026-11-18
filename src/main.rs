@@ -6,7 +6,6 @@ use std::process::ExitCode;
 use clap::Parser;
 
 use pdfreflow::Report;
-use pdfreflow::layout::PagePlan;
 
 /// Turn a two-column PDF into single-column pages that are easy to read on a phone.
 ///
@@ -40,17 +39,19 @@ fn explain(report: &Report) {
         layout.type_area.lo,
         layout.type_area.hi,
     );
-    for (index, plan) in report.plans.iter().enumerate() {
-        match plan {
-            PagePlan::Keep => eprintln!("  page {:>3}: kept whole", index + 1),
-            PagePlan::Crops(crops) => {
-                let crops: Vec<String> = crops
-                    .iter()
-                    .map(|c| format!("[{:.0} {:.0} {:.0} {:.0}]", c.x0, c.y0, c.x1, c.y1))
-                    .collect();
-                eprintln!("  page {:>3}: {}", index + 1, crops.join("  "));
-            }
-        }
+    for (index, pieces) in report.plans.iter().enumerate() {
+        let pieces: Vec<String> = pieces
+            .iter()
+            .map(|piece| {
+                let r = piece.rect;
+                let mut text = format!("[{:.0} {:.0} {:.0} {:.0}]", r.x0, r.y0, r.x1, r.y1);
+                if piece.scale != 1.0 {
+                    text.push_str(&format!(" shrunk to {:.0}%", piece.scale * 100.0));
+                }
+                text
+            })
+            .collect();
+        eprintln!("  page {:>3}: {}", index + 1, pieces.join("  "));
     }
 }
 

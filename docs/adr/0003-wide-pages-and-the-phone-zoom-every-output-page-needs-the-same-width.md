@@ -9,8 +9,8 @@ adr teaching map: the example is not the teaching — these are the up-links fro
 # Wide pages and the phone zoom: every output page needs the same width
 
 - **Date**: 2026-11-18 (UTC)
-- **Iteration**: 1
-- **Status**: Draft
+- **Iteration**: 2
+- **Status**: Partially Implemented
 - **Deciders**: Jérémie Lumbroso, Galley 5.2
 
 **TL;DR**: One page kept at full width makes a phone reader zoom every page out to fit it, undoing the reflow; the output must have one page width throughout, and the open question is what to do with content that is wider than a column.
@@ -49,7 +49,7 @@ The human ran the tool on a manuscript under review and shared what `--explain` 
 ## Questions
 
 ### QST-WIDE-PAGES: What should the tool do with a page that is wider than a column?
-- Status: unanswered
+- Status: answered
 - Why asking: today a page whose text runs across the gap (a single-column page, or a page of full-width figures) is kept whole at full width, and that one page makes a phone reader zoom every other page out. The output needs one page width throughout. The options differ in what the wide content looks like once it is forced to column width. The seat has not heard the human's own idea; if it is none of these, it is the answer.
 - Need: pick a letter (or override — any shape answers)
 
@@ -64,7 +64,7 @@ Options:
 **A — shrink to fit, now; D as the step after.** *Rationale*: A is the smallest change that makes "one width throughout" true for every input, so it fixes the zoom problem the human reported (the 567-point page becomes 275 points wide) without cutting anything. It is also not thrown away by D: D needs exactly A's scaling for each full-width band, plus band detection, plus C's rotation as a per-band choice. B contradicts ADR-0002's own regression test (a single-column page cut in two is unreadable). C alone does nothing for the page in the report, which is 567 wide by 645 tall. *Confidence*: 0.7 — because the zoom diagnosis rests on the human's direct observation and the `--explain` numbers, but nobody has yet looked at half-size figures on a phone. *If wrong*: if figures at half size are too small to read without constant pinching, this flips to D straight away (with rotation for wide bands) and A is only its first commit.
 
 **ANS:** (by Jérémie Lumbroso)
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+A now, D next, as recommended. In conversation, 2026-11-18 (recorded by Galley 5.2): "Your recommendation is chef's kiss. I had come up with A independently, but your combined concept is better. Endorsed!"
 
 ---
 
@@ -109,14 +109,33 @@ All earlier test papers were made by pdfTeX, and so was the manuscript in this r
 
 ## Decision
 
-Not made yet: waits on QST-WIDE-PAGES. The rule itself — every output page has the same width — is proposed in the Explicitation and is what any answer will be held to.
+~~Not made yet: waits on QST-WIDE-PAGES.~~ *Decided in Iteration 2.*
+
+### Chosen: one width throughout — shrink to fit now (A), bands next (D)
+
+The human had arrived at A independently and endorsed the combined plan. The rule is now a property of the output: **every page the tool writes is exactly as wide as a column.**
+
+**As built (A)**, in `src/layout.rs` (`plan`, `Piece`) and `src/cut.rs`:
+
+- Both columns are cut to one width (the wider of the two, measured outwards from the gap).
+- A page that is not cut into columns — single-column text, a page of full-width figures, a page stored sideways, a blank page — becomes one piece, shrunk to that same width. The page's drawing is wrapped in a single scaling instruction; it is still not rendered, so text stays text.
+- `--explain` marks such pieces, for example `[68 160 544 626] shrunk to 50%`.
+
+**Checked**: on a synthetic article with a page of three stacked full-width figures (pdfTeX), all 11 output pages are 238 points wide, where before the figure pages would have been 476. The regression test fails with the fix disabled ("page 5 is 512 wide, the first is 248") and passes with it. Not yet checked on the manuscript that showed the problem: only the human can do that.
+
+**Trade-off accepted**: figures on a shrunk page are about half size. On the synthetic page each figure is 476 wide and about 170 tall; turned sideways on its own page it could be shown at about 140% instead of 50%. That is what D is for.
+
+### Consequences
+- ADR-0002's sentence "a single-column page … is kept in one piece (cropped to the text block)" still holds, with "and shrunk to column width" added.
+- Rotated pages are no longer passed through untouched: they are shrunk too, since any full-width page breaks the zoom.
 
 ---
 
 ## Action Items
 
-- [ ] Implement the answer to QST-WIDE-PAGES, with a test that every output page of a paper containing a wide page has the same width - Owner: Galley 5.2
-- [ ] Make the left and right crops exactly the same width (they differ by 2 points in the run above) - Owner: Galley 5.2
+- [x] Implement the answer to QST-WIDE-PAGES, part A (shrink to fit), with a test that every output page of a paper containing a wide page has the same width - Owner: Galley 5.2
+- [ ] Implement part D: split pages into bands; give each full-width band its own page, shrunk or turned sideways - Owner: Galley 5.2
+- [x] Make the left and right crops exactly the same width (they differ by 2 points in the run above) - Owner: Galley 5.2
 - [ ] Apply the answer to QST-LINE-NUMBERS - Owner: Galley 5.2
 - [ ] Try a two-column paper made by Word, Typst or InDesign - Owner: whoever finds one first
 
@@ -129,6 +148,12 @@ Not made yet: waits on QST-WIDE-PAGES. The rule itself — every output page has
 - Contributors: Jérémie Lumbroso, Galley 5.2
 - Changes: problem recorded; the one-width rule proposed; two questions opened, each with the seat's recommendation written before hearing the human's own idea.
 - Outcome: `Draft`
+
+### Iteration 2 (2026-11-18)
+- Trigger: the human answered QST-WIDE-PAGES in conversation: A now, D next; they had reached A independently.
+- Contributors: Jérémie Lumbroso, Galley 5.2
+- Changes: answer recorded; part A built, tested and described under Decision; left and right crops made the same width. QST-LINE-NUMBERS is still open and line numbers are still kept.
+- Outcome: `Draft → Partially Implemented` (A is in; D is not).
 
 ---
 

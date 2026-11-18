@@ -30,9 +30,25 @@ const SPANNING: f64 = 0.5;
 /// The ink of one page, with the page's visible rectangle.
 pub struct PageInk {
     pub media: Rect,
-    /// False for pages stored rotated; those are passed through untouched.
-    pub upright: bool,
+    /// The page's stored rotation in degrees: 0, 90, 180 or 270. Rotated pages
+    /// are not searched for columns; they are kept whole.
+    pub rotation: i64,
     pub boxes: Vec<InkBox>,
+}
+
+impl PageInk {
+    fn upright(&self) -> bool {
+        self.rotation == 0
+    }
+
+    /// The page's width as a reader shows it, rotation applied.
+    fn shown_width(&self) -> f64 {
+        if self.rotation % 180 == 0 {
+            self.media.width()
+        } else {
+            self.media.height()
+        }
+    }
 }
 
 /// A range along one axis, in points.
@@ -65,13 +81,33 @@ pub struct Layout {
     pub type_area: Span,
 }
 
-/// What to do with one source page.
-#[derive(Clone, Debug, PartialEq)]
-pub enum PagePlan {
-    /// Leave the page exactly as it is.
-    Keep,
-    /// Replace the page by these crops, in reading order.
-    Crops(Vec<Rect>),
+/// One output page: a rectangle cut out of a source page and drawn at `scale`.
+///
+/// Every piece of a document comes out the same width (`rect.width() * scale`
+/// is the same for all of them). A phone reader sizes its view to the widest
+/// page, so a single wider page would zoom every other page out (ADR-0003).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Piece {
+    pub rect: Rect,
+    /// 1.0 for a column; less than 1.0 for content wider than a column, which
+    /// is shrunk to fit.
+    pub scale: f64,
+}
+
+impl Piece {
+    /// A piece `width` wide once drawn, however wide `rect` is.
+    fn fitted(rect: Rect, shown_width: f64, width: f64) -> Piece {
+        let scale = width / shown_width;
+        Piece {
+            rect,
+            // Leave true columns exactly alone: no rounding-sized rescaling.
+            scale: if (scale - 1.0).abs() < 0.005 {
+                1.0
+            } else {
+                scale
+            },
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -144,7 +180,7 @@ fn is_background(ink: &InkBox, media: Rect) -> bool {
 pub fn detect(pages: &[PageInk]) -> Result<Layout, LayoutError> {
     let usable: Vec<&PageInk> = pages
         .iter()
-        .filter(|page| page.upright && !page.boxes.is_empty())
+        .filter(|page| page.upright() && !page.boxes.is_empty())
         .collect();
     let bounds = usable
         .iter()
@@ -297,36 +333,52 @@ fn type_area(pages: &[&PageInk], bounds: Rect, columns: Span) -> Option<Span> {
     })
 }
 
-/// Decides, for every page, which crops replace it.
-pub fn plan(pages: &[PageInk], layout: &Layout) -> Vec<PagePlan> {
+/// Decides, for every page, which pieces replace it, in reading order.
+///
+/// A two-column page gives one piece per column that has ink. Anything else —
+/// a page set in one wide column, a rotated page, a blank page — gives one
+/// piece, shrunk to the same width as a column.
+pub fn plan(pages: &[PageInk], layout: &Layout) -> Vec<Vec<Piece>> {
     let inner_pad = PAD.min(layout.gutter.width() / 2.0);
+    // Both columns are cut to one width: the wider of the two, measured from
+    // the gap outwards, so the narrower one gains a little outer margin.
+    let width = layout.left.width().max(layout.right.width()) + PAD + inner_pad;
+    let left = Span {
+        lo: layout.left.hi + inner_pad - width,
+        hi: layout.left.hi + inner_pad,
+    };
+    let right = Span {
+        lo: layout.right.lo - inner_pad,
+        hi: layout.right.lo - inner_pad + width,
+    };
+    let both = Span {
+        lo: layout.left.lo - PAD,
+        hi: layout.right.hi + PAD,
+    };
+
     pages
         .iter()
         .map(|page| {
-            if !page.upright || page.boxes.is_empty() {
-                return PagePlan::Keep;
+            let whole = Piece::fitted(page.media, page.shown_width(), width);
+            if !page.upright() {
+                return vec![whole];
             }
-            let crops: Vec<Rect> = if is_single_column(page, layout) {
-                let both = Span {
-                    lo: layout.left.lo,
-                    hi: layout.right.hi,
-                };
-                crop(page, both, layout.type_area, PAD, PAD)
+            let pieces: Vec<Piece> = if is_single_column(page, layout) {
+                crop(page, both, layout.type_area)
+                    .map(|rect| Piece::fitted(rect, rect.width(), width))
                     .into_iter()
                     .collect()
             } else {
-                [
-                    crop(page, layout.left, layout.type_area, PAD, inner_pad),
-                    crop(page, layout.right, layout.type_area, inner_pad, PAD),
-                ]
-                .into_iter()
-                .flatten()
-                .collect()
+                [left, right]
+                    .into_iter()
+                    .filter_map(|column| crop(page, column, layout.type_area))
+                    .map(|rect| Piece { rect, scale: 1.0 })
+                    .collect()
             };
-            if crops.is_empty() {
-                PagePlan::Keep
+            if pieces.is_empty() {
+                vec![whole]
             } else {
-                PagePlan::Crops(crops)
+                pieces
             }
         })
         .collect()
@@ -351,9 +403,9 @@ fn is_single_column(page: &PageInk, layout: &Layout) -> bool {
     column_density > 0.0 && gutter_density >= SPANNING * column_density
 }
 
-/// The tight crop of one column on one page: the column's full width, and only
-/// as tall as the ink that is actually there. `None` when the column is empty.
-fn crop(page: &PageInk, across: Span, down: Span, pad_lo: f64, pad_hi: f64) -> Option<Rect> {
+/// The tight crop of one column on one page: exactly `across` wide, and only as
+/// tall as the ink that is actually there. `None` when the column is empty.
+fn crop(page: &PageInk, across: Span, down: Span) -> Option<Rect> {
     let window = Rect::new(across.lo, down.lo, across.hi, down.hi);
     let extent = page
         .boxes
@@ -362,11 +414,12 @@ fn crop(page: &PageInk, across: Span, down: Span, pad_lo: f64, pad_hi: f64) -> O
         .filter_map(|ink| ink.rect.intersect(window))
         .filter(|rect| rect.width() > 0.5)
         .reduce(Rect::union)?;
-    Rect::new(
-        across.lo - pad_lo,
-        extent.y0 - PAD,
-        across.hi + pad_hi,
-        extent.y1 + PAD,
-    )
-    .intersect(page.media)
+    // The height is kept inside the page; the width is not clipped, so that
+    // every crop is exactly as wide as the others.
+    Some(Rect::new(
+        across.lo,
+        (extent.y0 - PAD).max(page.media.y0),
+        across.hi,
+        (extent.y1 + PAD).min(page.media.y1),
+    ))
 }
