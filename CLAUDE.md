@@ -92,7 +92,7 @@ Before serving any change:
 2. Fix any failures before committing
 3. Never serve changes with a failing gate
 
-**Why**: The output of this tool is a PDF someone will read a paper from, and a wrong cut silently hides text: a crop that is a few points off drops the first letters of every line. The tests are where that gets caught (page counts, crop rectangles, columns in reading order), and clippy with warnings as errors catches the unchecked arithmetic and ignored results that produce such off-by-some-points cuts. The registry check is there because a malformed `agent-sessions.json` breaks every wake and brief addressed through it. *(As of 2026-11-18 the crate has no tests yet — the gate proves it builds clean and nothing more. Replace this note with real catches as they happen.)*
+**Why**: The output of this tool is a PDF someone will read a paper from, and a wrong cut silently hides text: a crop that is a few points off drops the first letters of every line. The tests are where that gets caught (page counts, crop rectangles, columns in reading order), and clippy with warnings as errors catches the unchecked arithmetic and ignored results that produce such off-by-some-points cuts. The registry check is there because a malformed `agent-sessions.json` breaks every wake and brief addressed through it. *First real catch, 2026-11-18: a test for a single-column page inside a two-column paper failed and showed that the column detection itself was wrong (it summed ink over pages; a minority of wide pages filled the gap). See `docs/vignettes/2026-11-18-the-appendix-page-that-filled-the-gap.md`.* To include the stand-in paper in the run, set `PDFREFLOW_SAMPLE=/path/to/paper.pdf`; without it that one test reports itself skipped.
 
 **Process**:
 ```bash
@@ -249,10 +249,10 @@ If the script was successfully used, append as comments how, and what the outcom
 pdfreflow is a fast command-line tool that takes a two-column PDF (a typical research paper), finds the two columns on each page, and writes a PDF with the columns one after the other, so the paper can be read on a phone. It runs entirely on the local machine. This repository is the product: the Rust crate lives at the root (`Cargo.toml`, `src/`, `tests/`), next to the design record in `docs/adr/`.
 
 ### Current focus:
-The MVP: detect the gap between the two columns and emit each column as its own page (ADR-0002). Content that spans both columns is out of scope for the MVP. As of 2026-11-18 the crate is a command-line skeleton only; the next step is the column-detection experiment on the stand-in paper, then the cut step.
+The MVP exists and works (2026-11-18): each column becomes its own tightly cropped page, with headers, footers and page numbers left out (ADR-0002). It has been run on three two-column papers, all made by pdfTeX. What comes next is the human's call once they have read a real paper with it; the candidates are listed as unchecked follow-ups in ADR-0002 (keeping titles and spanning figures whole, keeping links, scanned papers).
 
 ### Key decisions made:
-- Rust, with `lopdf` and `clap` — see `docs/adr/0001-implementation-language-rust-over-go.md`
+- Rust, with `lopdf` and `clap`; licensed `MIT OR Apache-2.0` — see `docs/adr/0001-implementation-language-rust-over-go.md`
 - Columns are cut by narrowing page boxes, never by re-rendering — see `docs/adr/0002-mvp-pipeline-detect-the-two-columns-and-re-emit-them-as-pages.md`
 
 ### Open questions:

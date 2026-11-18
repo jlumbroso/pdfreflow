@@ -7,7 +7,31 @@
     "adrManager.logging.tourUnresolvedRefs": true,
     "adrManager.reportButton.enabled": true,
     "adrManager.humanName": "Jérémie Lumbroso",
-    "peacock.color": "",
+    // The hive's window colour: Prussian blue, the pigment of blueprints and
+    // cyanotypes (the first cheap way to copy a page), and the complement of
+    // the Galley seat's minium orange, so the seat's bar reads clearly inside
+    // the window. Proposed by Galley 5.2, 2026-11-18 — re-roll freely with
+    // "Peacock: Enter a Color" or "Peacock: Surprise Me".
+    "workbench.colorCustomizations": {
+        "activityBar.activeBackground": "#2665b3",
+        "activityBar.background": "#2665b3",
+        "activityBar.foreground": "#e7e7e7",
+        "activityBar.inactiveForeground": "#e7e7e799",
+        "activityBarBadge.background": "#d9532b",
+        "activityBarBadge.foreground": "#e7e7e7",
+        "commandCenter.border": "#e7e7e799",
+        "sash.hoverBorder": "#2665b3",
+        "statusBar.background": "#1d4e89",
+        "statusBar.foreground": "#e7e7e7",
+        "statusBarItem.hoverBackground": "#2665b3",
+        "statusBarItem.remoteBackground": "#1d4e89",
+        "statusBarItem.remoteForeground": "#e7e7e7",
+        "titleBar.activeBackground": "#1d4e89",
+        "titleBar.activeForeground": "#e7e7e7",
+        "titleBar.inactiveBackground": "#1d4e8999",
+        "titleBar.inactiveForeground": "#e7e7e799"
+    },
+    "peacock.color": "#1d4e89",
     "python.terminal.activateEnvironment": false,
     "terminal.integrated.env.osx": {
         "PATH": "/opt/homebrew/bin:${env:HOME}/.asdf/shims:${env:PATH}"
